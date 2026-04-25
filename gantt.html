@@ -154,7 +154,13 @@
     .nameCell { cursor: pointer; }
     .nameCell input { width: 100%; box-sizing: border-box; }
     .planRow.selected td.treeHead, .planRow.selected td.treeHead2 { background: var(--selected); }
-    .dpvRow td.treeHead, .dpvRow td.treeHead2 { font-weight: 700; }
+    .dpvRow td.treeHead {
+      font-weight: 700;
+      border: none;
+    }
+    .dpvRow td.daycell {
+      border: none;
+    }
     .dpv-domain td { background: #9fc5ff; border-color: #9fc5ff; color: #0f2f55; }
     .dpv-project td { background: #9de2b4; border-color: #9de2b4; color: #0f3d24; }
     .dpv-version td { background: #d8b4fe; border-color: #d8b4fe; color: #41205f; }
@@ -1585,20 +1591,17 @@
     function addDPVRow(label, target, kind) {
       const tr = document.createElement("tr");
       tr.className = "treeRow dpvRow dpv-" + kind;
-      const tdKind = document.createElement("td");
-      tdKind.className = "treeHead";
-      tdKind.textContent = kind;
       const tdLabel = document.createElement("td");
-      tdLabel.className = "treeHead2";
+      tdLabel.colSpan = 2;
+      tdLabel.className = "treeHead";
       tdLabel.textContent = label;
-      tr.appendChild(tdKind);
       tr.appendChild(tdLabel);
       dates.forEach(() => {
         const c = document.createElement("td");
         c.className = "daycell";
         tr.appendChild(c);
       });
-      const startIdx = 2;
+      const startIdx = 1;
       dates.forEach((ds, i) => {
         const key = commentRefKey(kind, target, ds);
         const c = tr.children[startIdx + i];
@@ -2125,7 +2128,7 @@
     }
     if (resizingY) {
       const r = appRoot.getBoundingClientRect();
-      const minTop = 80;
+      const minTop = 40;
       const maxTop = Math.max(minTop, r.height * 0.7);
       state.topPaneHeight = Math.min(Math.max(e.clientY - r.top, minTop), maxTop);
       document.documentElement.style.setProperty("--topH", state.topPaneHeight + "px");
