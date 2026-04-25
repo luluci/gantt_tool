@@ -72,19 +72,26 @@
     table.gantt td, table.gantt th {
       border: 1px solid var(--border); padding: 2px 4px; vertical-align: middle;
     }
-    .treeHead { width: 120px; background: #eee; position: sticky; left: 0; z-index: 3; }
-    .treeHead2 { width: 140px; background: #eee; position: sticky; left: 120px; z-index: 3; }
+    .treeHead { width: 120px; background: #eee; position: sticky; left: 0; z-index: 100; }
+    .treeHead2 { width: 140px; background: #eee; position: sticky; left: 120px; z-index: 100; }
+    th.treeHead, th.treeHead2 { z-index: 4; }
     .dayHead { width: 28px; font-size: 8px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0; }
     .daycell { width: 28px; height: 22px; padding: 0; text-align: center; font-size: 9px; cursor: cell; user-select: none; vertical-align: top; }
     .daycell.dark { background: var(--bg-darkcol); color: #bbb; cursor: default; }
     .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
-    .daycell.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .planRow.selected td.daycell {
+      box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent);
+    }
     .daycell .actual {
       height: 3px; margin-top: 1px; background: var(--actual-bar); border-radius: 1px;
     }
     .nameCell { cursor: pointer; }
     .nameCell input { width: 100%; box-sizing: border-box; }
     .planRow.selected td.treeHead, .planRow.selected td.treeHead2 { background: var(--selected); }
+    .dpvRow td.treeHead, .dpvRow td.treeHead2 { font-weight: 700; }
+    .dpv-domain td { background: #9fc5ff; border-color: #9fc5ff; color: #0f2f55; }
+    .dpv-project td { background: #9de2b4; border-color: #9de2b4; color: #0f3d24; }
+    .dpv-version td { background: #d8b4fe; border-color: #d8b4fe; color: #41205f; }
     .muted { color: #666; font-size: 11px; }
     button { cursor: pointer; }
     .treeRow { background: #fff; }
@@ -1440,8 +1447,12 @@
 
     function addDayHeaderRow(textFn, bgFn) {
       const tr = document.createElement("tr");
-      tr.appendChild(document.createElement("th"));
-      tr.appendChild(document.createElement("th"));
+      const th1 = document.createElement("th");
+      th1.className = "treeHead";
+      const th2 = document.createElement("th");
+      th2.className = "treeHead2";
+      tr.appendChild(th1);
+      tr.appendChild(th2);
       dates.forEach((ds) => {
         const th = document.createElement("th");
         th.className = "dayHead";
@@ -1458,18 +1469,21 @@
 
     function addDPVRow(label, target, kind) {
       const tr = document.createElement("tr");
-      tr.className = "treeRow";
-      const td = document.createElement("td");
-      td.colSpan = 2;
-      td.textContent = label;
-      td.style.fontWeight = "600";
-      tr.appendChild(td);
+      tr.className = "treeRow dpvRow dpv-" + kind;
+      const tdKind = document.createElement("td");
+      tdKind.className = "treeHead";
+      tdKind.textContent = kind;
+      const tdLabel = document.createElement("td");
+      tdLabel.className = "treeHead2";
+      tdLabel.textContent = label;
+      tr.appendChild(tdKind);
+      tr.appendChild(tdLabel);
       dates.forEach(() => {
         const c = document.createElement("td");
-        c.className = "daycell dark";
+        c.className = "daycell";
         tr.appendChild(c);
       });
-      const startIdx = 1;
+      const startIdx = 2;
       dates.forEach((ds, i) => {
         const key = commentRefKey(kind, target, ds);
         const c = tr.children[startIdx + i];
@@ -1500,7 +1514,7 @@
       dates.forEach((ds) => {
         const key = commentRefKey("plan", pl, ds);
         const td = document.createElement("td");
-        td.className = "daycell" + (state.selectedPlanId === pl.id ? " selected" : "");
+        td.className = "daycell";
         td.style.position = "relative";
         const hrs = dayHoursAll(pl, ds);
         const cap = hrs > 0 ? hrs : 8 * (pl.utilization || 1);
