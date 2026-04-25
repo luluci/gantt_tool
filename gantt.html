@@ -23,6 +23,7 @@
       --holiday-sun: #ffeef0;
       --holiday-strong: #ffd7dc;
       --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      --cal-head-row-h: 20px;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; font-family: var(--font); font-size: 13px; }
@@ -69,13 +70,61 @@
       font-size: 11px; white-space: pre-wrap; word-break: break-word; cursor: move; pointer-events: auto;
     }
     table.gantt { border-collapse: collapse; table-layout: fixed; }
-    table.gantt td, table.gantt th {
+    table.gantt th {
+      padding: 2px 4px; vertical-align: middle;
+    }
+    table.gantt td {
       border: 1px solid var(--border); padding: 2px 4px; vertical-align: middle;
     }
-    .treeHead { width: 120px; background: #eee; position: sticky; left: 0; z-index: 100; }
-    .treeHead2 { width: 140px; background: #eee; position: sticky; left: 120px; z-index: 100; }
-    th.treeHead, th.treeHead2 { z-index: 4; }
-    .dayHead { width: 28px; font-size: 8px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0; }
+    .treeHead {
+      width: 120px; background: #eee; position: sticky; left: 0; z-index: 100;
+    }
+    .treeHead2 {
+      width: 140px; background: #eee; position: sticky; left: 120px; z-index: 100;
+    }
+    table.gantt thead th {
+      position: sticky;
+      z-index: 40;
+      border-color: transparent;
+    }
+    table.gantt thead th::before {
+      content: "";
+      position: absolute;
+      inset: -1px -1px 0 0;
+      background: inherit;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      pointer-events: none;
+      z-index: -1;
+    }
+    table.gantt thead tr:first-child th::before { border-top: 1px solid var(--border); }
+    table.gantt thead th:first-child::before { border-left: 1px solid var(--border); }
+    table.gantt thead tr.calYear th {
+      top: 0;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border);
+    }
+    table.gantt thead tr.calMonth th {
+      top: var(--cal-head-row-h);
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border);
+    }
+    table.gantt thead tr.calDay th {
+      top: calc(var(--cal-head-row-h) * 2);
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border);
+    }
+    table.gantt thead tr.calWeek th {
+      top: calc(var(--cal-head-row-h) * 3);
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border);
+    }
+    table.gantt thead th.treeHead, table.gantt thead th.treeHead2 { z-index: 120; }
+    .dayHead { width: 28px; height: var(--cal-head-row-h); font-size: 10px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0; }
     .daycell { width: 28px; height: 22px; padding: 0; text-align: center; font-size: 9px; cursor: cell; user-select: none; vertical-align: top; }
     .daycell.dark { background: var(--bg-darkcol); color: #bbb; cursor: default; }
     .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
@@ -1444,15 +1493,18 @@
     colgroup.innerHTML = '<col class="treeHead" /><col class="treeHead2" />' +
       dates.map(() => '<col style="width:28px" />').join("");
     tbl.appendChild(colgroup);
+    const thead = document.createElement("thead");
+    const tbody = document.createElement("tbody");
+    tbl.appendChild(thead);
+    tbl.appendChild(tbody);
 
-    function addDayHeaderRow(textFn, bgFn) {
+    function addDayHeaderRow(rowClass, textFn, bgFn) {
       const tr = document.createElement("tr");
+      tr.className = rowClass;
       const th1 = document.createElement("th");
       th1.className = "treeHead";
-      const th2 = document.createElement("th");
-      th2.className = "treeHead2";
+      th1.colSpan = 2;
       tr.appendChild(th1);
-      tr.appendChild(th2);
       dates.forEach((ds) => {
         const th = document.createElement("th");
         th.className = "dayHead";
@@ -1460,12 +1512,40 @@
         if (bgFn) th.style.background = bgFn(ds) || "";
         tr.appendChild(th);
       });
-      tbl.appendChild(tr);
+      thead.appendChild(tr);
     }
-    addDayHeaderRow((ds) => ds.slice(0, 4));
-    addDayHeaderRow((ds) => ds.slice(5, 7));
-    addDayHeaderRow((ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
-    addDayHeaderRow((ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
+
+    function addGroupedHeaderRow(rowClass, textFn, bgFn) {
+      const tr = document.createElement("tr");
+      tr.className = rowClass;
+      const th1 = document.createElement("th");
+      th1.className = "treeHead";
+      th1.colSpan = 2;
+      tr.appendChild(th1);
+      if (dates.length === 0) {
+        thead.appendChild(tr);
+        return;
+      }
+      let start = 0;
+      while (start < dates.length) {
+        const label = textFn(dates[start]);
+        let end = start + 1;
+        while (end < dates.length && textFn(dates[end]) === label) end++;
+        const th = document.createElement("th");
+        th.className = "dayHead";
+        th.colSpan = end - start;
+        th.textContent = label;
+        if (bgFn) th.style.background = bgFn(dates[start]) || "";
+        tr.appendChild(th);
+        start = end;
+      }
+      thead.appendChild(tr);
+    }
+
+    addGroupedHeaderRow("calYear", (ds) => ds.slice(0, 4));
+    addGroupedHeaderRow("calMonth", (ds) => ds.slice(5, 7));
+    addDayHeaderRow("calDay", (ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
+    addDayHeaderRow("calWeek", (ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
 
     function addDPVRow(label, target, kind) {
       const tr = document.createElement("tr");
@@ -1507,7 +1587,7 @@
           openCommentPopup(target, ds, kind + ":" + label, c, key);
         });
       });
-      tbl.appendChild(tr);
+      tbody.appendChild(tr);
     }
 
     function appendPlanDayCells(tr, dom, pr, vr, pl) {
@@ -1599,7 +1679,7 @@
           c.style.background = "#eee";
           tr.appendChild(c);
         });
-        tbl.appendChild(tr);
+        tbody.appendChild(tr);
         return;
       }
       vis.forEach((pl, i) => {
@@ -1623,7 +1703,7 @@
         });
         tr.appendChild(tPlan);
         appendPlanDayCells(tr, dom, pr, vr, pl);
-        tbl.appendChild(tr);
+        tbody.appendChild(tr);
       });
     }
 
