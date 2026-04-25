@@ -60,6 +60,14 @@
     #resizer.hidden { display: none; }
     #rightWrap { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
     #ganttVScroll { flex: 1 1 auto; overflow: auto; min-height: 0; }
+    .ganttStage { position: relative; width: max-content; min-width: 100%; }
+    .commentLayer { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 6; }
+    .commentLineLayer { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; }
+    .commentCard {
+      position: absolute; min-width: 160px; max-width: 220px; padding: 4px 6px;
+      background: #fffef3; border: 1px solid #d7cfa2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      font-size: 11px; white-space: pre-wrap; word-break: break-word; cursor: move; pointer-events: auto;
+    }
     table.gantt { border-collapse: collapse; table-layout: fixed; }
     table.gantt td, table.gantt th {
       border: 1px solid var(--border); padding: 2px 4px; vertical-align: middle;
@@ -153,19 +161,35 @@
         delete pl.cells[ds];
         return;
       }
+      const comment = c.comment == null ? "" : String(c.comment);
+      const keepComment = (obj) => {
+        if (comment.trim()) obj.comment = comment;
+        return obj;
+      };
+      const hasLegacyHours = c.byPhase != null || c.hours != null;
+      if (!hasLegacyHours) {
+        if (c.util != null) {
+          const utilNum = Number(c.util);
+          pl.cells[ds] = keepComment(Math.abs(utilNum - u0) < 1e-5 ? {} : { util: utilNum });
+        } else {
+          pl.cells[ds] = keepComment({});
+        }
+        return;
+      }
       const h = Number(c.byPhase && c.byPhase.all != null ? c.byPhase.all : c.hours) || 0;
       if (h <= 0.001 && !c.util) {
-        delete pl.cells[ds];
+        if (comment.trim()) pl.cells[ds] = { comment };
+        else delete pl.cells[ds];
         return;
       }
       const cap = 8 * u0;
       if (c.util != null && !c.byPhase && c.hours == null) {
-        pl.cells[ds] = Math.abs(Number(c.util) - u0) < 1e-5 ? {} : { util: Number(c.util) };
+        pl.cells[ds] = keepComment(Math.abs(Number(c.util) - u0) < 1e-5 ? {} : { util: Number(c.util) });
         return;
       }
       if (h > 0.001) {
         const impliedU = h / 8;
-        pl.cells[ds] = Math.abs(impliedU - u0) < 1e-4 || Math.abs(h - cap) < 0.05 ? {} : { util: impliedU };
+        pl.cells[ds] = keepComment(Math.abs(impliedU - u0) < 1e-4 || Math.abs(h - cap) < 0.05 ? {} : { util: impliedU });
       }
     });
   }
@@ -180,10 +204,13 @@
     if (!Array.isArray(d.commonHolidays)) d.commonHolidays = [];
     if (!Array.isArray(d.domains)) d.domains = [];
     d.domains.forEach((dom) => {
+      dom.cells = dom.cells && typeof dom.cells === "object" ? dom.cells : {};
       dom.projects = dom.projects || [];
       dom.projects.forEach((pr) => {
+        pr.cells = pr.cells && typeof pr.cells === "object" ? pr.cells : {};
         pr.versions = pr.versions || [];
         pr.versions.forEach((vr) => {
+          vr.cells = vr.cells && typeof vr.cells === "object" ? vr.cells : {};
           vr.tasks = vr.tasks || [];
           vr.tasks.forEach((tk) => {
             tk.plans = tk.plans || [];
@@ -245,6 +272,8 @@
     if (c == null) return false;
     if (c === true) return true;
     if (typeof c !== "object") return false;
+    const keys = Object.keys(c).filter((k) => k !== "comment" && k !== "commentPos");
+    if (keys.length === 0) return false;
     if (c.byPhase && Number(c.byPhase.all) > 0) return true;
     if (Number(c.hours) > 0) return true;
     return true;
@@ -392,6 +421,49 @@
     return tk;
   }
 
+  function ensureObjectCells(target) {
+    target.cells = target.cells && typeof target.cells === "object" ? target.cells : {};
+    return target.cells;
+  }
+
+  function getCellComment(target, date) {
+    const c = target && target.cells ? target.cells[date] : null;
+    if (!c || typeof c !== "object") return "";
+    return String(c.comment || "");
+  }
+
+  function getCellCommentPos(target, date) {
+    const c = target && target.cells ? target.cells[date] : null;
+    if (!c || typeof c !== "object" || !c.commentPos || typeof c.commentPos !== "object") return null;
+    const x = Number(c.commentPos.x);
+    const y = Number(c.commentPos.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }
+
+  function setCellCommentPos(target, date, pos) {
+    const cells = ensureObjectCells(target);
+    let c = cells[date];
+    if (!c || typeof c !== "object" || c === true) c = {};
+    c.commentPos = { x: Number(pos.x) || 0, y: Number(pos.y) || 0 };
+    cells[date] = c;
+  }
+
+  function setCellComment(target, date, text) {
+    const cells = ensureObjectCells(target);
+    const val = String(text || "");
+    let c = cells[date];
+    if (!c || typeof c !== "object" || c === true) c = {};
+    if (val.trim()) c.comment = val;
+    else delete c.comment;
+    if (Object.keys(c).length === 0) delete cells[date];
+    else cells[date] = c;
+  }
+
+  function commentRefKey(kind, target, date) {
+    return kind + ":" + String(target.id || "") + ":" + String(date || "");
+  }
+
   function defaultColorForPlan(plan, state) {
     const m = state.data.members.find((x) => x.id === plan.ownerId);
     return (m && m.defaultColor) || "#8ab4e6";
@@ -446,6 +518,8 @@
     selectedPlanId: null,
     leftPaneWidth: 340,
     topPaneHeight: null,
+    commentDisplayMode: "always",
+    commentContextKey: null,
     inputPaneVisible: true,
     dirty: false,
     fileHandle: null,
@@ -472,6 +546,110 @@
   const ganttVScroll = document.getElementById("ganttVScroll");
   const bottomPane = document.getElementById("bottomPane");
   const appRoot = document.getElementById("app");
+  let commentPopup = null;
+  let commentPopupText = null;
+  let commentPopupMeta = null;
+  let commentPopupTarget = null;
+  let commentPopupDate = "";
+
+  function ensureCommentPopup() {
+    if (commentPopup) return;
+    const pop = document.createElement("div");
+    pop.style.position = "fixed";
+    pop.style.zIndex = "9999";
+    pop.style.width = "260px";
+    pop.style.padding = "8px";
+    pop.style.border = "1px solid #bbb";
+    pop.style.background = "#fff";
+    pop.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+    pop.style.display = "none";
+
+    const meta = document.createElement("div");
+    meta.style.fontSize = "11px";
+    meta.style.color = "#555";
+    meta.style.marginBottom = "6px";
+    pop.appendChild(meta);
+
+    const ta = document.createElement("textarea");
+    ta.rows = 6;
+    ta.style.width = "100%";
+    ta.style.boxSizing = "border-box";
+    pop.appendChild(ta);
+
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.gap = "6px";
+    row.style.marginTop = "6px";
+    const bSave = document.createElement("button");
+    bSave.type = "button";
+    bSave.textContent = "保存";
+    const bDel = document.createElement("button");
+    bDel.type = "button";
+    bDel.textContent = "削除";
+    const bClose = document.createElement("button");
+    bClose.type = "button";
+    bClose.textContent = "閉じる";
+    row.appendChild(bSave);
+    row.appendChild(bDel);
+    row.appendChild(bClose);
+    pop.appendChild(row);
+    document.body.appendChild(pop);
+
+    const closePopup = () => {
+      pop.style.display = "none";
+      commentPopupTarget = null;
+      commentPopupDate = "";
+      if (state.commentDisplayMode === "context") {
+        state.commentContextKey = null;
+        renderGantt();
+      }
+    };
+    bClose.addEventListener("click", closePopup);
+    bSave.addEventListener("click", () => {
+      if (!commentPopupTarget || !commentPopupDate) return;
+      setCellComment(commentPopupTarget, commentPopupDate, ta.value);
+      markDirty(state, true);
+      closePopup();
+      renderAll();
+    });
+    bDel.addEventListener("click", () => {
+      if (!commentPopupTarget || !commentPopupDate) return;
+      setCellComment(commentPopupTarget, commentPopupDate, "");
+      markDirty(state, true);
+      closePopup();
+      renderAll();
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && pop.style.display !== "none") closePopup();
+    });
+    window.addEventListener("mousedown", (e) => {
+      if (pop.style.display === "none") return;
+      if (e.target === pop || pop.contains(e.target)) return;
+      closePopup();
+    });
+    commentPopup = pop;
+    commentPopupText = ta;
+    commentPopupMeta = meta;
+  }
+
+  function openCommentPopup(target, date, label, anchorEl, refKey) {
+    ensureCommentPopup();
+    commentPopupTarget = target;
+    commentPopupDate = date;
+    if (state.commentDisplayMode === "context") {
+      state.commentContextKey = refKey || commentRefKey("plan", target, date);
+    }
+    commentPopupText.value = getCellComment(target, date);
+    commentPopupMeta.textContent = label + " / " + date;
+    const r = anchorEl.getBoundingClientRect();
+    const left = Math.min(window.innerWidth - 280, Math.max(8, r.left + 8));
+    const top = Math.min(window.innerHeight - 220, Math.max(8, r.bottom + 6));
+    commentPopup.style.left = left + "px";
+    commentPopup.style.top = top + "px";
+    commentPopup.style.display = "block";
+    commentPopupText.focus();
+    if (state.commentDisplayMode === "context") renderGantt();
+  }
 
   function renderTop() {
     const d = state.data;
@@ -534,6 +712,18 @@
       renderTop();
     });
     topPane.appendChild(bToggle);
+
+    const bCommentMode = document.createElement("button");
+    bCommentMode.type = "button";
+    bCommentMode.textContent = state.commentDisplayMode === "always"
+      ? "コメント: 常時表示"
+      : "コメント: 右クリック時";
+    bCommentMode.addEventListener("click", () => {
+      state.commentDisplayMode = state.commentDisplayMode === "always" ? "context" : "always";
+      if (state.commentDisplayMode === "always") state.commentContextKey = null;
+      renderAll();
+    });
+    topPane.appendChild(bCommentMode);
 
     const ph = mkListbox("selPhase", d.phases.map((p) => ({ value: p, label: p })), {
       label: "phase",
@@ -832,7 +1022,7 @@
     const head = document.createElement("div");
     head.style.padding = "6px";
     head.appendChild(addBtn("+ domain", () => {
-      d.domains.push({ id: uid(), name: "新しい domain", projects: [] });
+      d.domains.push({ id: uid(), name: "新しい domain", cells: {}, projects: [] });
       markDirty(state, true);
       renderAll();
     }));
@@ -852,7 +1042,7 @@
       ds.addEventListener("click", () => startEditLabel(ds, (v) => { dom.name = v || dom.name; markDirty(state, true); }));
       dh.appendChild(ds);
       dh.appendChild(addBtn("+ project", () => {
-        dom.projects.push({ id: uid(), name: "新しい project", versions: [] });
+        dom.projects.push({ id: uid(), name: "新しい project", cells: {}, versions: [] });
         markDirty(state, true);
         renderAll();
       }));
@@ -871,7 +1061,7 @@
         ps.addEventListener("click", () => startEditLabel(ps, (v) => { pr.name = v || pr.name; markDirty(state, true); }));
         ph.appendChild(ps);
         ph.appendChild(addBtn("+ version", () => {
-          pr.versions.push({ id: uid(), name: "新しい version", tasks: [] });
+          pr.versions.push({ id: uid(), name: "新しい version", cells: {}, tasks: [] });
           markDirty(state, true);
           renderAll();
         }));
@@ -1238,6 +1428,7 @@
 
   function renderGantt(datesOverride) {
     const dates = datesOverride || getDateRange(state);
+    const commentRefs = [];
     const tbl = document.createElement("table");
     tbl.className = "gantt";
     const colgroup = document.createElement("colgroup");
@@ -1263,7 +1454,7 @@
     addDayHeaderRow((ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
     addDayHeaderRow((ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
 
-    function addDPVRow(label) {
+    function addDPVRow(label, target, kind) {
       const tr = document.createElement("tr");
       tr.className = "treeRow";
       const td = document.createElement("td");
@@ -1276,13 +1467,39 @@
         c.className = "daycell dark";
         tr.appendChild(c);
       });
+      const startIdx = 1;
+      dates.forEach((ds, i) => {
+        const key = commentRefKey(kind, target, ds);
+        const c = tr.children[startIdx + i];
+        c.style.position = "relative";
+        if (getCellComment(target, ds).trim()) {
+          const dot = document.createElement("span");
+          dot.style.position = "absolute";
+          dot.style.top = "2px";
+          dot.style.right = "2px";
+          dot.style.width = "5px";
+          dot.style.height = "5px";
+          dot.style.borderRadius = "50%";
+          dot.style.background = "#b0293a";
+          dot.dataset.commentRef = key;
+          c.appendChild(dot);
+          commentRefs.push({ key, kind, label, target, date: ds, dot });
+        }
+        c.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openCommentPopup(target, ds, kind + ":" + label, c, key);
+        });
+      });
       tbl.appendChild(tr);
     }
 
-    function appendPlanDayCells(tr, pl) {
+    function appendPlanDayCells(tr, dom, pr, vr, pl) {
       dates.forEach((ds) => {
+        const key = commentRefKey("plan", pl, ds);
         const td = document.createElement("td");
         td.className = "daycell" + (state.selectedPlanId === pl.id ? " selected" : "");
+        td.style.position = "relative";
         const hrs = dayHoursAll(pl, ds);
         const cap = hrs > 0 ? hrs : 8 * (pl.utilization || 1);
         const base = planBarColor(pl, state);
@@ -1309,6 +1526,19 @@
 
         td.appendChild(fill);
         td.appendChild(actBar);
+        if (getCellComment(pl, ds).trim()) {
+          const dot = document.createElement("span");
+          dot.style.position = "absolute";
+          dot.style.top = "2px";
+          dot.style.right = "2px";
+          dot.style.width = "5px";
+          dot.style.height = "5px";
+          dot.style.borderRadius = "50%";
+          dot.style.background = "#b0293a";
+          dot.dataset.commentRef = key;
+          td.appendChild(dot);
+          commentRefs.push({ key, kind: "plan", label: pl.name, target: pl, date: ds, dot });
+        }
 
         td.dataset.date = ds;
         td.dataset.planId = pl.id;
@@ -1323,12 +1553,17 @@
           td.style.cursor = "";
         });
 
+        td.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openCommentPopup(pl, ds, "plan:" + pl.name, td, key);
+        });
         td.addEventListener("pointerdown", (e) => onCellPointerDown(e, pl, ds, dates));
         tr.appendChild(td);
       });
     }
 
-    function appendTaskPlanRows(tk) {
+    function appendTaskPlanRows(dom, pr, vr, tk) {
       const vis = (tk.plans || []).filter(planMatchesCaseFilter);
       const n = Math.max(1, vis.length);
       if (vis.length === 0) {
@@ -1369,26 +1604,124 @@
           renderAll();
         });
         tr.appendChild(tPlan);
-        appendPlanDayCells(tr, pl);
+        appendPlanDayCells(tr, dom, pr, vr, pl);
         tbl.appendChild(tr);
       });
     }
 
     state.data.domains.forEach((dom) => {
-      addDPVRow(dom.name);
+      addDPVRow(dom.name, dom, "domain");
       (dom.projects || []).forEach((pr) => {
-        addDPVRow(pr.name);
+        addDPVRow(pr.name, pr, "project");
         (pr.versions || []).forEach((vr) => {
-          addDPVRow(vr.name);
+          addDPVRow(vr.name, vr, "version");
           (vr.tasks || []).forEach((tk) => {
-            appendTaskPlanRows(tk);
+            appendTaskPlanRows(dom, pr, vr, tk);
           });
         });
       });
     });
 
+    const stage = document.createElement("div");
+    stage.className = "ganttStage";
+    stage.appendChild(tbl);
+    const lineLayer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    lineLayer.setAttribute("class", "commentLineLayer");
+    const commentLayer = document.createElement("div");
+    commentLayer.className = "commentLayer";
+    stage.appendChild(lineLayer);
+    stage.appendChild(commentLayer);
+
+    function clampCommentPos(x, y, cardW, cardH) {
+      const maxX = Math.max(0, stage.offsetWidth - cardW - 4);
+      const maxY = Math.max(0, stage.offsetHeight - cardH - 4);
+      return { x: Math.min(Math.max(0, x), maxX), y: Math.min(Math.max(0, y), maxY) };
+    }
+
+    function drawCommentOverlay() {
+      const showAll = state.commentDisplayMode === "always";
+      const refs = showAll
+        ? commentRefs
+        : commentRefs.filter((r) => r.key === state.commentContextKey);
+      commentLayer.innerHTML = "";
+      while (lineLayer.firstChild) lineLayer.removeChild(lineLayer.firstChild);
+      const rect = stage.getBoundingClientRect();
+      lineLayer.setAttribute("width", String(stage.offsetWidth));
+      lineLayer.setAttribute("height", String(stage.offsetHeight));
+      lineLayer.style.width = stage.offsetWidth + "px";
+      lineLayer.style.height = stage.offsetHeight + "px";
+      commentLayer.style.width = stage.offsetWidth + "px";
+      commentLayer.style.height = stage.offsetHeight + "px";
+      refs.forEach((ref) => {
+        const text = getCellComment(ref.target, ref.date);
+        if (!text.trim()) return;
+        const dotR = ref.dot.getBoundingClientRect();
+        const dotX = dotR.left - rect.left + dotR.width / 2;
+        const dotY = dotR.top - rect.top + dotR.height / 2;
+        const card = document.createElement("div");
+        card.className = "commentCard";
+        card.textContent = text;
+        commentLayer.appendChild(card);
+        const saved = getCellCommentPos(ref.target, ref.date);
+        const cw = card.offsetWidth;
+        const ch = card.offsetHeight;
+        const baseX = saved ? saved.x : dotX + 12;
+        const baseY = saved ? saved.y : dotY - 10;
+        const pos = clampCommentPos(baseX, baseY, cw, ch);
+        card.style.left = pos.x + "px";
+        card.style.top = pos.y + "px";
+
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("stroke", "#b0293a");
+        line.setAttribute("stroke-width", "1.2");
+        line.setAttribute("stroke-opacity", "0.9");
+        lineLayer.appendChild(line);
+        const updateLine = () => {
+          const cx = parseFloat(card.style.left) || 0;
+          const cy = parseFloat(card.style.top) || 0;
+          line.setAttribute("x1", String(dotX));
+          line.setAttribute("y1", String(dotY));
+          line.setAttribute("x2", String(cx));
+          line.setAttribute("y2", String(cy + 10));
+        };
+        updateLine();
+
+        card.addEventListener("pointerdown", (ev) => {
+          if (ev.button !== 0) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+          const sx = ev.clientX;
+          const sy = ev.clientY;
+          const ox = parseFloat(card.style.left) || 0;
+          const oy = parseFloat(card.style.top) || 0;
+          card.setPointerCapture(ev.pointerId);
+          const onMv = (mv) => {
+            const nx = ox + (mv.clientX - sx);
+            const ny = oy + (mv.clientY - sy);
+            const cl = clampCommentPos(nx, ny, cw, ch);
+            card.style.left = cl.x + "px";
+            card.style.top = cl.y + "px";
+            updateLine();
+          };
+          const onUp = (up) => {
+            card.releasePointerCapture(up.pointerId);
+            card.removeEventListener("pointermove", onMv);
+            card.removeEventListener("pointerup", onUp);
+            const px = parseFloat(card.style.left) || 0;
+            const py = parseFloat(card.style.top) || 0;
+            setCellCommentPos(ref.target, ref.date, { x: px, y: py });
+            markDirty(state, true);
+            renderGantt(dates);
+          };
+          card.addEventListener("pointermove", onMv);
+          card.addEventListener("pointerup", onUp);
+        });
+      });
+    }
+
     ganttVScroll.innerHTML = "";
-    ganttVScroll.appendChild(tbl);
+    ganttVScroll.appendChild(stage);
+    drawCommentOverlay();
   }
 
   function actualHoursOnDate(pl, ds, state) {
@@ -1625,7 +1958,6 @@
     renderTop();
     renderTree();
     renderGantt();
-    syncHScroll();
   }
 
   let resizingX = false;
