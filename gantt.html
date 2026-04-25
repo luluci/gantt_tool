@@ -125,6 +125,19 @@
     }
     table.gantt thead th.treeHead, table.gantt thead th.treeHead2 { z-index: 120; }
     .dayHead { width: 28px; height: var(--cal-head-row-h); font-size: 10px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0; }
+    table.gantt thead tr.calYear th.dayHead,
+    table.gantt thead tr.calMonth th.dayHead {
+      text-align: left;
+      padding-left: 0;
+    }
+    .calStickyLabel {
+      position: sticky;
+      left: 260px;
+      display: inline-block;
+      padding-left: 6px;
+      white-space: nowrap;
+      z-index: 45;
+    }
     .daycell { width: 28px; height: 22px; padding: 0; text-align: center; font-size: 9px; cursor: cell; user-select: none; vertical-align: top; }
     .daycell.dark { background: var(--bg-darkcol); color: #bbb; cursor: default; }
     .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
@@ -1534,7 +1547,14 @@
         const th = document.createElement("th");
         th.className = "dayHead";
         th.colSpan = end - start;
-        th.textContent = label;
+        if (rowClass === "calYear" || rowClass === "calMonth") {
+          const txt = document.createElement("span");
+          txt.className = "calStickyLabel";
+          txt.textContent = label;
+          th.appendChild(txt);
+        } else {
+          th.textContent = label;
+        }
         if (bgFn) th.style.background = bgFn(dates[start]) || "";
         tr.appendChild(th);
         start = end;
