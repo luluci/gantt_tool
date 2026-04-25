@@ -19,9 +19,9 @@
       --accent: #2a6fbb;
       --selected: #fff3bf;
       --actual-bar: #444;
-      --holiday-weekend: #f3f5f7;
-      --holiday-common: #e8f2ff;
-      --holiday-member: #ffe9ef;
+      --holiday-sat: #e9f6ff;
+      --holiday-sun: #ffeef0;
+      --holiday-strong: #ffd7dc;
       --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
     }
     * { box-sizing: border-box; }
@@ -288,18 +288,32 @@
     return w === 0 || w === 6;
   }
 
+  function weekendTypeYMD(ymd) {
+    const d = parseYMD(ymd);
+    if (!d) return "";
+    const w = d.getDay();
+    if (w === 6) return "saturday";
+    if (w === 0) return "sunday";
+    return "";
+  }
+
   function holidayTypeForDate(ymd, plan, state) {
     const mem = state.data.members.find((m) => m.id === plan.ownerId);
     if (mem && Array.isArray(mem.holidays) && mem.holidays.includes(ymd)) return "member";
     if (state.data.commonHolidays.includes(ymd)) return "common";
-    if (isWeekendYMD(ymd)) return "weekend";
-    return "";
+    return weekendTypeYMD(ymd);
+  }
+
+  function holidayTypeForHeaderDate(ymd, state) {
+    if (state.data.commonHolidays.includes(ymd)) return "common";
+    return weekendTypeYMD(ymd);
   }
 
   function holidayBgColor(type) {
-    if (type === "member") return "var(--holiday-member)";
-    if (type === "common") return "var(--holiday-common)";
-    if (type === "weekend") return "var(--holiday-weekend)";
+    if (type === "member") return "var(--holiday-strong)";
+    if (type === "common") return "var(--holiday-strong)";
+    if (type === "sunday") return "var(--holiday-sun)";
+    if (type === "saturday") return "var(--holiday-sat)";
     return "";
   }
 
@@ -1228,7 +1242,7 @@
       dates.map(() => '<col style="width:28px" />').join("");
     tbl.appendChild(colgroup);
 
-    function addDayHeaderRow(textFn) {
+    function addDayHeaderRow(textFn, bgFn) {
       const tr = document.createElement("tr");
       tr.appendChild(document.createElement("th"));
       tr.appendChild(document.createElement("th"));
@@ -1236,14 +1250,15 @@
         const th = document.createElement("th");
         th.className = "dayHead";
         th.textContent = textFn(ds);
+        if (bgFn) th.style.background = bgFn(ds) || "";
         tr.appendChild(th);
       });
       tbl.appendChild(tr);
     }
     addDayHeaderRow((ds) => ds.slice(0, 4));
     addDayHeaderRow((ds) => ds.slice(5, 7));
-    addDayHeaderRow((ds) => ds.slice(8, 10));
-    addDayHeaderRow((ds) => weekdayJp(ds));
+    addDayHeaderRow((ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
+    addDayHeaderRow((ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
 
     function addDPVRow(label) {
       const tr = document.createElement("tr");
