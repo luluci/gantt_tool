@@ -166,31 +166,6 @@
         if (comment.trim()) obj.comment = comment;
         return obj;
       };
-      const hasLegacyHours = c.byPhase != null || c.hours != null;
-      if (!hasLegacyHours) {
-        if (c.util != null) {
-          const utilNum = Number(c.util);
-          pl.cells[ds] = keepComment(Math.abs(utilNum - u0) < 1e-5 ? {} : { util: utilNum });
-        } else {
-          pl.cells[ds] = keepComment({});
-        }
-        return;
-      }
-      const h = Number(c.byPhase && c.byPhase.all != null ? c.byPhase.all : c.hours) || 0;
-      if (h <= 0.001 && !c.util) {
-        if (comment.trim()) pl.cells[ds] = { comment };
-        else delete pl.cells[ds];
-        return;
-      }
-      const cap = 8 * u0;
-      if (c.util != null && !c.byPhase && c.hours == null) {
-        pl.cells[ds] = keepComment(Math.abs(Number(c.util) - u0) < 1e-5 ? {} : { util: Number(c.util) });
-        return;
-      }
-      if (h > 0.001) {
-        const impliedU = h / 8;
-        pl.cells[ds] = keepComment(Math.abs(impliedU - u0) < 1e-4 || Math.abs(h - cap) < 0.05 ? {} : { util: impliedU });
-      }
     });
   }
 
@@ -274,10 +249,8 @@
     if (typeof c !== "object") return false;
     const rawKeys = Object.keys(c);
     if (rawKeys.length === 0) return true;
-    const keys = rawKeys.filter((k) => k !== "comment" && k !== "commentPos");
+    const keys = rawKeys.filter((k) => k === "util");
     if (keys.length === 0) return false;
-    if (c.byPhase && Number(c.byPhase.all) > 0) return true;
-    if (Number(c.hours) > 0) return true;
     return true;
   }
 
@@ -430,15 +403,15 @@
 
   function getCellComment(target, date) {
     const c = target && target.cells ? target.cells[date] : null;
-    if (!c || typeof c !== "object") return "";
-    return String(c.comment || "");
+    if (!c || typeof c !== "object" || !c.comment || typeof c.comment !== "object") return "";
+    return String(c.comment.text || "");
   }
 
   function getCellCommentPos(target, date) {
     const c = target && target.cells ? target.cells[date] : null;
-    if (!c || typeof c !== "object" || !c.commentPos || typeof c.commentPos !== "object") return null;
-    const x = Number(c.commentPos.x);
-    const y = Number(c.commentPos.y);
+    if (!c || typeof c !== "object" || !c.comment || typeof c.comment !== "object" || !c.comment.pos || typeof c.comment.pos !== "object") return null;
+    const x = Number(c.comment.pos.x);
+    const y = Number(c.comment.pos.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     return { x, y };
   }
@@ -447,7 +420,8 @@
     const cells = ensureObjectCells(target);
     let c = cells[date];
     if (!c || typeof c !== "object" || c === true) c = {};
-    c.commentPos = { x: Number(pos.x) || 0, y: Number(pos.y) || 0 };
+    if (!c.comment || typeof c.comment !== "object") c.comment = { text:"" };
+    c.comment.pos = { x: Number(pos.x) || 0, y: Number(pos.y) || 0 };
     cells[date] = c;
   }
 
@@ -456,10 +430,10 @@
     const val = String(text || "");
     let c = cells[date];
     if (!c || typeof c !== "object" || c === true) c = {};
-    if (val.trim()) c.comment = val;
+    if (!c.comment || typeof c.comment !== "object") c.comment = { text:"" };
+    if (val.trim()) c.comment.text = val;
     else delete c.comment;
-    if (Object.keys(c).length === 0) delete cells[date];
-    else cells[date] = c;
+    cells[date] = c;
   }
 
   function commentRefKey(kind, target, date) {
@@ -1796,7 +1770,11 @@
       if (dg && pln) {
         if (dg.mode === "click" && !dg.dragMoved && pln) {
           if (!cellIsOn(pln, ds)) {
-            pln.cells[ds] = {};
+            let cell = pln.cells[ds];
+            if (!cell || typeof cell !== "object" || cell === true) cell = {};
+            if (!cell.util) cell.util = 1;
+            pln.cells[ds] = cell;
+
             const minCellDate = earliestInputCellDate(pln);
             if (minCellDate) pln.plannedStart = minCellDate;
             recomputeAllPhaseFromCells(pln);
@@ -1864,7 +1842,7 @@
         const nextSi = shiftIndexByBusinessDays(dates, si, step, pl, state);
         if (nextSi < 0) return;
         for (let di = si; di < nextSi && di <= ei; di++) {
-          delete nextCells[dates[di]];
+          delete nextCells[dates[di]].util;
         }
       } else if (step < 0) {
         let addIdx = si;
@@ -1873,7 +1851,12 @@
           addIdx--;
           if (addIdx < 0) return;
           if (isHolidayDate(dates[addIdx], pl, state)) continue;
-          nextCells[dates[addIdx]] = {};
+
+          let nextCell = nextCells[dates[addIdx]];
+          if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
+          nextCell.util = 1;
+          nextCells[dates[addIdx]] = nextCell;
+
           need--;
         }
       }
@@ -1885,7 +1868,7 @@
         const nextEi = shiftIndexByBusinessDays(dates, ei, step, pl, state);
         if (nextEi < 0) return;
         for (let di = ei; di > nextEi && di >= si; di--) {
-          delete nextCells[dates[di]];
+          delete nextCells[dates[di]].util;
         }
       } else if (step > 0) {
         let addIdx = ei;
@@ -1894,7 +1877,12 @@
           addIdx++;
           if (addIdx >= dates.length) return;
           if (isHolidayDate(dates[addIdx], pl, state)) continue;
-          nextCells[dates[addIdx]] = {};
+
+          let nextCell = nextCells[dates[addIdx]];
+          if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
+          nextCell.util = 1;
+          nextCells[dates[addIdx]] = nextCell;
+          
           need--;
         }
       }
