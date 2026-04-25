@@ -19,6 +19,9 @@
       --accent: #2a6fbb;
       --selected: #fff3bf;
       --actual-bar: #444;
+      --holiday-weekend: #f3f5f7;
+      --holiday-common: #e8f2ff;
+      --holiday-member: #ffe9ef;
       --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
     }
     * { box-sizing: border-box; }
@@ -285,12 +288,23 @@
     return w === 0 || w === 6;
   }
 
-  function isHolidayDate(ymd, plan, state) {
-    if (isWeekendYMD(ymd)) return true;
-    if (state.data.commonHolidays.includes(ymd)) return true;
+  function holidayTypeForDate(ymd, plan, state) {
     const mem = state.data.members.find((m) => m.id === plan.ownerId);
-    if (mem && Array.isArray(mem.holidays) && mem.holidays.includes(ymd)) return true;
-    return false;
+    if (mem && Array.isArray(mem.holidays) && mem.holidays.includes(ymd)) return "member";
+    if (state.data.commonHolidays.includes(ymd)) return "common";
+    if (isWeekendYMD(ymd)) return "weekend";
+    return "";
+  }
+
+  function holidayBgColor(type) {
+    if (type === "member") return "var(--holiday-member)";
+    if (type === "common") return "var(--holiday-common)";
+    if (type === "weekend") return "var(--holiday-weekend)";
+    return "";
+  }
+
+  function isHolidayDate(ymd, plan, state) {
+    return !!holidayTypeForDate(ymd, plan, state);
   }
 
   function capacityForDate(plan, ymd, state) {
@@ -329,6 +343,15 @@
       }
     });
     return daysBetween(last, maxCell) >= 0 ? maxCell : last;
+  }
+
+  function earliestInputCellDate(plan) {
+    let minDate = null;
+    Object.keys(plan.cells || {}).forEach((ds) => {
+      if (!cellIsOn(plan, ds)) return;
+      if (!minDate || daysBetween(ds, minDate) > 0) minDate = ds;
+    });
+    return minDate;
   }
 
   function eachPlan(state, fn) {
@@ -1133,8 +1156,32 @@
     const idx = dates.indexOf(dateStr);
     if (idx < 0) return { start: dateStr, end: dateStr };
     let s = idx, e = idx;
-    while (s > 0 && hasDisplayedHours(plan, dates[s - 1])) s--;
-    while (e < dates.length - 1 && hasDisplayedHours(plan, dates[e + 1])) e++;
+    let li = s - 1;
+    while (li >= 0) {
+      if (hasDisplayedHours(plan, dates[li])) {
+        s = li;
+        li--;
+        continue;
+      }
+      if (isHolidayDate(dates[li], plan, state)) {
+        li--;
+        continue;
+      }
+      break;
+    }
+    let ri = e + 1;
+    while (ri < dates.length) {
+      if (hasDisplayedHours(plan, dates[ri])) {
+        e = ri;
+        ri++;
+        continue;
+      }
+      if (isHolidayDate(dates[ri], plan, state)) {
+        ri++;
+        continue;
+      }
+      break;
+    }
     return { start: dates[s], end: dates[e], startIdx: s, endIdx: e };
   }
 
@@ -1150,6 +1197,19 @@
     if (mode === "resize-left" || mode === "resize-right") return "ew-resize";
     if (mode === "move") return "move";
     return "";
+  }
+
+  function shiftIndexByBusinessDays(dates, startIdx, step, plan, state) {
+    if (step === 0) return startIdx;
+    let idx = startIdx;
+    let remain = Math.abs(step);
+    const dir = step > 0 ? 1 : -1;
+    while (remain > 0) {
+      idx += dir;
+      if (idx < 0 || idx >= dates.length) return -1;
+      if (!isHolidayDate(dates[idx], plan, state)) remain--;
+    }
+    return idx;
   }
 
   const WD_JP = ["日", "月", "火", "水", "木", "金", "土"];
@@ -1208,13 +1268,14 @@
         const hrs = dayHoursAll(pl, ds);
         const cap = hrs > 0 ? hrs : 8 * (pl.utilization || 1);
         const base = planBarColor(pl, state);
+        const holType = holidayTypeForDate(ds, pl, state);
         const fill = document.createElement("span");
         fill.className = "fill";
         if (hrs > 0) {
           td.style.background = base;
           fill.style.background = "transparent";
         } else {
-          td.style.background = "";
+          td.style.background = holidayBgColor(holType) || "";
           fill.style.background = "";
         }
         const uShow = cellIsOn(pl, ds) && Math.abs(effectiveCellUtil(pl, ds) - (pl.utilization || 1)) > 1e-5;
@@ -1392,6 +1453,9 @@
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
         } else if (dg.changed) {
+          const minCellDate = earliestInputCellDate(pln);
+          if (minCellDate) pln.plannedStart = minCellDate;
+          pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
         }
       }
@@ -1418,34 +1482,44 @@
     let changed = false;
 
     if (dg.mode === "move") {
+      const targets = [];
       for (let di = startIdx; di <= endIdx; di++) {
         const k = dates[di];
         if (!dg.orig[k]) continue;
-        if (!dates[di + step]) return;
+        const ti = shiftIndexByBusinessDays(dates, di, step, pl, state);
+        if (ti < 0) return;
+        targets.push({ src: di, dst: ti });
       }
       for (let di = startIdx; di <= endIdx; di++) {
         const k = dates[di];
         if (dg.orig[k]) delete nextCells[k];
       }
-      for (let di = startIdx; di <= endIdx; di++) {
-        const k = dates[di];
-        const cell = dg.orig[k];
+      for (let i = 0; i < targets.length; i++) {
+        const srcKey = dates[targets[i].src];
+        const dstKey = dates[targets[i].dst];
+        const cell = dg.orig[srcKey];
         if (!cell) continue;
-        nextCells[dates[di + step]] = JSON.parse(JSON.stringify(cell));
+        nextCells[dstKey] = JSON.parse(JSON.stringify(cell));
       }
       changed = step !== 0;
     } else if (dg.mode === "resize-left") {
       let si = startIdx;
       let ei = endIdx;
       if (step > 0) {
-        for (let k = 0; k < step && si <= ei; k++) {
-          delete nextCells[dates[si]];
-          si++;
+        const nextSi = shiftIndexByBusinessDays(dates, si, step, pl, state);
+        if (nextSi < 0) return;
+        for (let di = si; di < nextSi && di <= ei; di++) {
+          delete nextCells[dates[di]];
         }
       } else if (step < 0) {
-        for (let k = 0; k < -step && si > 0; k++) {
-          si--;
-          nextCells[dates[si]] = {};
+        let addIdx = si;
+        let need = -step;
+        while (need > 0) {
+          addIdx--;
+          if (addIdx < 0) return;
+          if (isHolidayDate(dates[addIdx], pl, state)) continue;
+          nextCells[dates[addIdx]] = {};
+          need--;
         }
       }
       changed = step !== 0;
@@ -1453,14 +1527,20 @@
       let si = startIdx;
       let ei = endIdx;
       if (step < 0) {
-        for (let k = 0; k < -step && ei >= si; k++) {
-          delete nextCells[dates[ei]];
-          ei--;
+        const nextEi = shiftIndexByBusinessDays(dates, ei, step, pl, state);
+        if (nextEi < 0) return;
+        for (let di = ei; di > nextEi && di >= si; di--) {
+          delete nextCells[dates[di]];
         }
       } else if (step > 0) {
-        for (let k = 0; k < step && ei < dates.length - 1; k++) {
-          ei++;
-          nextCells[dates[ei]] = {};
+        let addIdx = ei;
+        let need = step;
+        while (need > 0) {
+          addIdx++;
+          if (addIdx >= dates.length) return;
+          if (isHolidayDate(dates[addIdx], pl, state)) continue;
+          nextCells[dates[addIdx]] = {};
+          need--;
         }
       }
       changed = step !== 0;
