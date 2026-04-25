@@ -272,7 +272,9 @@
     if (c == null) return false;
     if (c === true) return true;
     if (typeof c !== "object") return false;
-    const keys = Object.keys(c).filter((k) => k !== "comment" && k !== "commentPos");
+    const rawKeys = Object.keys(c);
+    if (rawKeys.length === 0) return true;
+    const keys = rawKeys.filter((k) => k !== "comment" && k !== "commentPos");
     if (keys.length === 0) return false;
     if (c.byPhase && Number(c.byPhase.all) > 0) return true;
     if (Number(c.hours) > 0) return true;
