@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -37,6 +37,9 @@
     .listbox option { padding: 2px 4px; }
     .rowBtns { display: flex; gap: 4px; flex-wrap: wrap; }
     .rowBtns input[type="text"] { width: 100px; }
+    .listManageBody { display: flex; gap: 6px; align-items: flex-start; }
+    .listManageBtns { display: flex; flex-direction: column; gap: 4px; min-width: 110px; }
+    .listManageBtns input[type="text"] { width: 110px; }
     #bottomPane { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
     #leftPane {
       flex: 0 0 var(--leftW, 340px); min-width: 200px; max-width: 70%;
@@ -50,11 +53,6 @@
     #resizer.hidden { display: none; }
     #rightWrap { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
     #ganttVScroll { flex: 1 1 auto; overflow: auto; min-height: 0; }
-    #hScrollHost {
-      flex: 0 0 16px; border-top: 1px solid var(--border); overflow-x: auto; overflow-y: hidden;
-      background: #f0f0f0;
-    }
-    #hScrollInner { height: 1px; }
     table.gantt { border-collapse: collapse; table-layout: fixed; }
     table.gantt td, table.gantt th {
       border: 1px solid var(--border); padding: 2px 4px; vertical-align: middle;
@@ -91,7 +89,6 @@
       <div id="resizer"></div>
       <div id="rightWrap">
         <div id="ganttVScroll"></div>
-        <div id="hScrollHost"><div id="hScrollInner"></div></div>
       </div>
     </div>
   </div>
@@ -426,8 +423,6 @@
   const leftPane = document.getElementById("leftPane");
   const resizer = document.getElementById("resizer");
   const ganttVScroll = document.getElementById("ganttVScroll");
-  const hScrollHost = document.getElementById("hScrollHost");
-  const hScrollInner = document.getElementById("hScrollInner");
   const bottomPane = document.getElementById("bottomPane");
 
   function renderTop() {
@@ -492,14 +487,17 @@
     });
     topPane.appendChild(bToggle);
 
-    const phEdit = document.createElement("div");
-    phEdit.className = "topBlock";
-    phEdit.innerHTML = "<label>phase 入力</label>";
-    const phRow = document.createElement("div");
-    phRow.className = "rowBtns";
+    const ph = mkListbox("selPhase", d.phases.map((p) => ({ value: p, label: p })), {
+      label: "phase",
+      onChange: () => {},
+    });
+    const phBody = document.createElement("div");
+    phBody.className = "listManageBody";
+    const phBtns = document.createElement("div");
+    phBtns.className = "listManageBtns";
     const phInp = document.createElement("input");
     phInp.type = "text";
-    phInp.placeholder = "新phase名";
+    phInp.placeholder = "new phase";
     const phAdd = document.createElement("button");
     phAdd.type = "button";
     phAdd.textContent = "追加";
@@ -516,8 +514,7 @@
     phDel.type = "button";
     phDel.textContent = "削除";
     phDel.addEventListener("click", () => {
-      const sel = ph.sel;
-      const pick = Array.from(sel.selectedOptions).map((x) => x.value).filter((x) => x !== "all");
+      const pick = Array.from(ph.sel.selectedOptions).map((x) => x.value).filter((x) => x !== "all");
       pick.forEach((p) => {
         d.phases = d.phases.filter((x) => x !== p);
       });
@@ -525,29 +522,29 @@
       markDirty(state, true);
       renderAll();
     });
-    phRow.appendChild(phInp);
-    phRow.appendChild(phAdd);
-    phRow.appendChild(phDel);
-    phEdit.appendChild(phRow);
-    topPane.appendChild(phEdit);
+    phBtns.appendChild(phInp);
+    phBtns.appendChild(phAdd);
+    phBtns.appendChild(phDel);
+    ph.wrap.removeChild(ph.sel);
+    phBody.appendChild(ph.sel);
+    phBody.appendChild(phBtns);
+    ph.wrap.insertBefore(phBody, ph.wrap.lastChild);
+    topPane.appendChild(ph.wrap);
 
     const cs = mkListbox("selCase", d.cases.map((c) => ({ value: c.id, label: c.name || c.id })), {
-      label: "case フィルタ",
+      label: "case",
       onChange: (vals) => { state.caseFilter = vals; renderAll(); },
     });
     Array.from(cs.sel.options).forEach((o) => {
       o.selected = state.caseFilter && state.caseFilter.includes(o.value);
     });
-    topPane.appendChild(cs.wrap);
-
-    const csEdit = document.createElement("div");
-    csEdit.className = "topBlock";
-    csEdit.innerHTML = "<label>case 入力</label>";
-    const csRow = document.createElement("div");
-    csRow.className = "rowBtns";
+    const csBody = document.createElement("div");
+    csBody.className = "listManageBody";
+    const csBtns = document.createElement("div");
+    csBtns.className = "listManageBtns";
     const csInp = document.createElement("input");
     csInp.type = "text";
-    csInp.placeholder = "新case名";
+    csInp.placeholder = "new case";
     const csAdd = document.createElement("button");
     csAdd.type = "button";
     csAdd.textContent = "追加";
@@ -566,14 +563,18 @@
     csDel.addEventListener("click", () => {
       const pick = Array.from(cs.sel.selectedOptions).map((x) => x.value);
       d.cases = d.cases.filter((c) => !pick.includes(c.id));
+      state.caseFilter = (state.caseFilter || []).filter((id) => d.cases.some((c) => c.id === id));
       markDirty(state, true);
       renderAll();
     });
-    csRow.appendChild(csInp);
-    csRow.appendChild(csAdd);
-    csRow.appendChild(csDel);
-    csEdit.appendChild(csRow);
-    topPane.appendChild(csEdit);
+    csBtns.appendChild(csInp);
+    csBtns.appendChild(csAdd);
+    csBtns.appendChild(csDel);
+    cs.wrap.removeChild(cs.sel);
+    csBody.appendChild(cs.sel);
+    csBody.appendChild(csBtns);
+    cs.wrap.insertBefore(csBody, cs.wrap.lastChild);
+    topPane.appendChild(cs.wrap);
 
     const mem = document.createElement("div");
     mem.className = "topBlock";
@@ -1301,9 +1302,6 @@
 
     ganttVScroll.innerHTML = "";
     ganttVScroll.appendChild(tbl);
-
-    const w = tbl.getBoundingClientRect().width;
-    hScrollInner.style.width = w + "px";
   }
 
   function actualHoursOnDate(pl, ds, state) {
@@ -1505,21 +1503,6 @@
     syncHScroll();
   }
 
-  function syncHScroll() {
-    const tbl = ganttVScroll.querySelector("table");
-    if (!tbl) return;
-    const w = tbl.scrollWidth;
-    hScrollInner.style.width = w + "px";
-    hScrollHost.scrollLeft = ganttVScroll.scrollLeft;
-  }
-
-  ganttVScroll.addEventListener("scroll", () => {
-    hScrollHost.scrollLeft = ganttVScroll.scrollLeft;
-  });
-  hScrollHost.addEventListener("scroll", () => {
-    ganttVScroll.scrollLeft = hScrollHost.scrollLeft;
-  });
-
   let resizing = false;
   resizer.addEventListener("mousedown", (e) => {
     resizing = true;
@@ -1552,3 +1535,4 @@
   </script>
 </body>
 </html>
+
