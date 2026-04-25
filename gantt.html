@@ -1459,6 +1459,8 @@
         if (dg.mode === "click" && !dg.dragMoved && pln) {
           if (!cellIsOn(pln, ds)) {
             pln.cells[ds] = {};
+            const minCellDate = earliestInputCellDate(pln);
+            if (minCellDate) pln.plannedStart = minCellDate;
             recomputeAllPhaseFromCells(pln);
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
