@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -25,8 +25,8 @@
     html, body { height: 100%; margin: 0; font-family: var(--font); font-size: 13px; }
     #app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     #topPane {
-      flex: 0 0 auto; background: var(--bg-top); border-bottom: 1px solid var(--border);
-      padding: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start;
+      flex: 0 0 var(--topH, auto); background: var(--bg-top); border-bottom: 1px solid var(--border);
+      padding: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; overflow: auto;
     }
     .topBlock { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
     .topBlock label { font-weight: 600; font-size: 11px; color: #333; }
@@ -40,6 +40,10 @@
     .listManageBody { display: flex; gap: 6px; align-items: flex-start; }
     .listManageBtns { display: flex; flex-direction: column; gap: 4px; min-width: 110px; }
     .listManageBtns input[type="text"] { width: 110px; }
+    #hResizer {
+      flex: 0 0 6px; cursor: row-resize; background: #e0e0e0;
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
     #bottomPane { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
     #leftPane {
       flex: 0 0 var(--leftW, 340px); min-width: 200px; max-width: 70%;
@@ -84,6 +88,7 @@
 <body>
   <div id="app">
     <div id="topPane"></div>
+    <div id="hResizer"></div>
     <div id="bottomPane">
       <div id="leftPane"></div>
       <div id="resizer"></div>
@@ -400,6 +405,7 @@
     caseFilter: [],
     selectedPlanId: null,
     leftPaneWidth: 340,
+    topPaneHeight: null,
     inputPaneVisible: true,
     dirty: false,
     fileHandle: null,
@@ -420,10 +426,12 @@
   }
 
   const topPane = document.getElementById("topPane");
+  const hResizer = document.getElementById("hResizer");
   const leftPane = document.getElementById("leftPane");
   const resizer = document.getElementById("resizer");
   const ganttVScroll = document.getElementById("ganttVScroll");
   const bottomPane = document.getElementById("bottomPane");
+  const appRoot = document.getElementById("app");
 
   function renderTop() {
     const d = state.data;
@@ -1120,8 +1128,8 @@
     return state.caseFilter.includes(pl.caseId || "");
   }
 
-  function contiguousBlock(plan, dateStr, state) {
-    const dates = getDateRange(state);
+  function contiguousBlock(plan, dateStr, state, datesOverride) {
+    const dates = datesOverride || getDateRange(state);
     const idx = dates.indexOf(dateStr);
     if (idx < 0) return { start: dateStr, end: dateStr };
     let s = idx, e = idx;
@@ -1130,8 +1138,8 @@
     return { start: dates[s], end: dates[e], startIdx: s, endIdx: e };
   }
 
-  function planCellInteractionMode(pl, dateStr, localX, cellWidth) {
-    const blk = contiguousBlock(pl, dateStr, state);
+  function planCellInteractionMode(pl, dateStr, localX, cellWidth, datesOverride) {
+    const blk = contiguousBlock(pl, dateStr, state, datesOverride);
     if (!hasDisplayedHours(pl, dateStr)) return "click";
     if (dateStr === blk.start && localX < PLAN_CELL_EDGE_PX) return "resize-left";
     if (dateStr === blk.end && localX > cellWidth - PLAN_CELL_EDGE_PX) return "resize-right";
@@ -1151,8 +1159,8 @@
     return d ? WD_JP[d.getDay()] : "";
   }
 
-  function renderGantt() {
-    const dates = getDateRange(state);
+  function renderGantt(datesOverride) {
+    const dates = datesOverride || getDateRange(state);
     const tbl = document.createElement("table");
     tbl.className = "gantt";
     const colgroup = document.createElement("colgroup");
@@ -1229,7 +1237,7 @@
         td.addEventListener("mousemove", (e) => {
           const r = td.getBoundingClientRect();
           const localX = e.clientX - r.left;
-          const m = planCellInteractionMode(pl, ds, localX, r.width);
+          const m = planCellInteractionMode(pl, ds, localX, r.width, dates);
           td.style.cursor = cursorForPlanCellMode(m) || "cell";
         });
         td.addEventListener("mouseleave", () => {
@@ -1333,7 +1341,7 @@
     const td = e.currentTarget;
     const rect = td.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const blk = contiguousBlock(pl, ds, state);
+    const blk = contiguousBlock(pl, ds, state, dates);
     let mode = "move";
     if (cellIsOn(pl, ds)) {
       if (ds === blk.start && x < PLAN_CELL_EDGE_PX) mode = "resize-left";
@@ -1349,6 +1357,9 @@
       block: blk,
       startX: e.clientX,
       orig: JSON.parse(JSON.stringify(pl.cells)),
+      frozenDates: dates.slice(),
+      lastStep: 0,
+      changed: false,
       dragMoved: false,
     };
     td.setPointerCapture(e.pointerId);
@@ -1361,16 +1372,14 @@
         return;
       }
       dg0.dragMoved = true;
-      onCellPointerMove(ev, pln, dates);
+      onCellPointerMove(ev, pln);
     };
     const onUp = (ev) => {
       td.releasePointerCapture(ev.pointerId);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       const dg = state.drag;
-      const cellW = Math.max(20, rect.width || 28);
       if (dg && pln) {
-        const dx = ev.clientX - dg.startX;
         if (dg.mode === "click" && !dg.dragMoved && pln) {
           if (!cellIsOn(pln, ds)) {
             pln.cells[ds] = {};
@@ -1378,43 +1387,12 @@
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
           }
-        } else if ((dg.mode === "resize-left" || dg.mode === "resize-right") && pln) {
-          const steps = Math.round(dx / cellW);
-          const b = contiguousBlock(pln, dg.startDate, state);
-          let si = dates.indexOf(b.start);
-          let ei = dates.indexOf(b.end);
-          if (dg.mode === "resize-left") {
-            if (steps > 0) {
-              for (let k = 0; k < steps && si <= ei; k++) {
-                delete pln.cells[dates[si]];
-                si++;
-              }
-            } else if (steps < 0) {
-              for (let k = 0; k < -steps && si > 0; k++) {
-                si--;
-                pln.cells[dates[si]] = {};
-              }
-            }
-          } else if (dg.mode === "resize-right") {
-            if (steps < 0) {
-              for (let k = 0; k < -steps && ei >= si; k++) {
-                delete pln.cells[dates[ei]];
-                ei--;
-              }
-            } else if (steps > 0) {
-              for (let k = 0; k < steps && ei < dates.length - 1; k++) {
-                ei++;
-                pln.cells[dates[ei]] = {};
-              }
-            }
-          }
-          recomputeAllPhaseFromCells(pln);
-          pln.plannedEnd = computePlannedEnd(pln, state);
-          markDirty(state, true);
         } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
           cycleCellUtil(pln, ds);
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
+        } else if (dg.changed) {
+          markDirty(state, true);
         }
       }
       state.drag = null;
@@ -1424,40 +1402,78 @@
     window.addEventListener("pointerup", onUp);
   }
 
-  function onCellPointerMove(e, pl, dates) {
+  function onCellPointerMove(e, pl) {
     const dg = state.drag;
     if (!dg || !pl || dg.planId !== pl.id) return;
+    const dates = dg.frozenDates && dg.frozenDates.length ? dg.frozenDates : getDateRange(state);
+    const dayW = 28;
     const dx = e.clientX - dg.startX;
-    if (dg.mode === "move" && dg.block) {
-      const dayW = 28;
-      const shift = Math.round(dx / dayW);
-      if (shift === 0) return;
-      const orig = dg.orig;
-      const { startIdx, endIdx } = dg.block;
+    const step = Math.round(dx / dayW);
+    if (step === dg.lastStep) return;
+
+    const { startIdx, endIdx } = dg.block || {};
+    if (startIdx == null || endIdx == null) return;
+
+    const nextCells = JSON.parse(JSON.stringify(dg.orig || {}));
+    let changed = false;
+
+    if (dg.mode === "move") {
       for (let di = startIdx; di <= endIdx; di++) {
         const k = dates[di];
-        if (!orig[k]) continue;
-        if (!dates[di + shift]) return;
+        if (!dg.orig[k]) continue;
+        if (!dates[di + step]) return;
       }
-      const newCells = {};
       for (let di = startIdx; di <= endIdx; di++) {
         const k = dates[di];
-        const cell = orig[k];
+        if (dg.orig[k]) delete nextCells[k];
+      }
+      for (let di = startIdx; di <= endIdx; di++) {
+        const k = dates[di];
+        const cell = dg.orig[k];
         if (!cell) continue;
-        const nk = dates[di + shift];
-        newCells[nk] = JSON.parse(JSON.stringify(cell));
+        nextCells[dates[di + step]] = JSON.parse(JSON.stringify(cell));
       }
-      for (let di = startIdx; di <= endIdx; di++) {
-        const k = dates[di];
-        if (pl.cells[k]) delete pl.cells[k];
+      changed = step !== 0;
+    } else if (dg.mode === "resize-left") {
+      let si = startIdx;
+      let ei = endIdx;
+      if (step > 0) {
+        for (let k = 0; k < step && si <= ei; k++) {
+          delete nextCells[dates[si]];
+          si++;
+        }
+      } else if (step < 0) {
+        for (let k = 0; k < -step && si > 0; k++) {
+          si--;
+          nextCells[dates[si]] = {};
+        }
       }
-      Object.assign(pl.cells, newCells);
-      dg.startX = e.clientX;
-      recomputeAllPhaseFromCells(pl);
-      pl.plannedEnd = computePlannedEnd(pl, state);
-      markDirty(state, true);
-      renderGantt();
+      changed = step !== 0;
+    } else if (dg.mode === "resize-right") {
+      let si = startIdx;
+      let ei = endIdx;
+      if (step < 0) {
+        for (let k = 0; k < -step && ei >= si; k++) {
+          delete nextCells[dates[ei]];
+          ei--;
+        }
+      } else if (step > 0) {
+        for (let k = 0; k < step && ei < dates.length - 1; k++) {
+          ei++;
+          nextCells[dates[ei]] = {};
+        }
+      }
+      changed = step !== 0;
+    } else {
+      return;
     }
+
+    pl.cells = nextCells;
+    dg.lastStep = step;
+    dg.changed = changed;
+    recomputeAllPhaseFromCells(pl);
+    pl.plannedEnd = computePlannedEnd(pl, state);
+    renderGantt(dates);
   }
 
   async function saveData() {
@@ -1495,6 +1511,15 @@
       pl.plannedEnd = computePlannedEnd(pl, state);
     });
     document.documentElement.style.setProperty("--leftW", state.leftPaneWidth + "px");
+    if (state.topPaneHeight == null) {
+      document.documentElement.style.setProperty("--topH", "auto");
+    } else {
+      const appRect = appRoot.getBoundingClientRect();
+      const minTop = 80;
+      const maxTop = Math.max(minTop, appRect.height * 0.7);
+      state.topPaneHeight = Math.min(Math.max(state.topPaneHeight, minTop), maxTop);
+      document.documentElement.style.setProperty("--topH", state.topPaneHeight + "px");
+    }
     leftPane.classList.toggle("hidden", !state.inputPaneVisible);
     resizer.classList.toggle("hidden", !state.inputPaneVisible);
     renderTop();
@@ -1503,18 +1528,42 @@
     syncHScroll();
   }
 
-  let resizing = false;
+  let resizingX = false;
+  let resizingY = false;
   resizer.addEventListener("mousedown", (e) => {
-    resizing = true;
+    resizingX = true;
+    e.preventDefault();
+  });
+  hResizer.addEventListener("mousedown", (e) => {
+    resizingY = true;
     e.preventDefault();
   });
   window.addEventListener("mousemove", (e) => {
-    if (!resizing) return;
-    const r = bottomPane.getBoundingClientRect();
-    state.leftPaneWidth = Math.min(Math.max(e.clientX - r.left, 200), r.width * 0.7);
-    document.documentElement.style.setProperty("--leftW", state.leftPaneWidth + "px");
+    if (resizingX) {
+      const r = bottomPane.getBoundingClientRect();
+      state.leftPaneWidth = Math.min(Math.max(e.clientX - r.left, 200), r.width * 0.7);
+      document.documentElement.style.setProperty("--leftW", state.leftPaneWidth + "px");
+    }
+    if (resizingY) {
+      const r = appRoot.getBoundingClientRect();
+      const minTop = 80;
+      const maxTop = Math.max(minTop, r.height * 0.7);
+      state.topPaneHeight = Math.min(Math.max(e.clientY - r.top, minTop), maxTop);
+      document.documentElement.style.setProperty("--topH", state.topPaneHeight + "px");
+    }
   });
-  window.addEventListener("mouseup", () => { resizing = false; });
+  window.addEventListener("mouseup", () => {
+    resizingX = false;
+    resizingY = false;
+  });
+  window.addEventListener("resize", () => {
+    if (state.topPaneHeight == null) return;
+    const r = appRoot.getBoundingClientRect();
+    const minTop = 80;
+    const maxTop = Math.max(minTop, r.height * 0.7);
+    state.topPaneHeight = Math.min(Math.max(state.topPaneHeight, minTop), maxTop);
+    document.documentElement.style.setProperty("--topH", state.topPaneHeight + "px");
+  });
 
   window.addEventListener("beforeunload", (e) => {
     if (state.dirty) {
