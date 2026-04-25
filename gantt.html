@@ -409,16 +409,19 @@
       if (!maxD || daysBetween(maxD, s) > 0) maxD = s;
     };
     eachPlan(state, (pl) => {
-      bump(pl.plannedStart);
-      bump(pl.plannedEnd);
-      bump(pl.actualStart);
-      bump(pl.actualEnd);
-      Object.keys(pl.cells || {}).forEach(bump);
+      Object.keys(pl.cells || {}).forEach((ds) => {
+        if (!cellIsOn(pl, ds)) return;
+        bump(ds);
+      });
     });
-    if (!minD) minD = toDateString(new Date());
-    if (!maxD) maxD = minD;
-    minD = addDays(minD, -14);
-    maxD = addDays(maxD, 120);
+    if (!minD || !maxD) {
+      const today = toDateString(new Date());
+      minD = addDays(today, -14);
+      maxD = addDays(today, 14);
+    } else {
+      minD = addDays(minD, -14);
+      maxD = addDays(maxD, 14);
+    }
     const out = [];
     let cur = parseYMD(minD);
     const end = parseYMD(maxD);
