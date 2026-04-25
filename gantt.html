@@ -528,6 +528,22 @@
   let commentPopupTarget = null;
   let commentPopupDate = "";
 
+  function scrollLeftPlanIntoView(planId) {
+    if (!planId) return;
+    const sel = '[data-plan-id="' + String(planId).replace(/"/g, '\\"') + '"]';
+    const el = leftPane.querySelector(sel);
+    if (el) el.scrollIntoView({ block: "nearest" });
+  }
+
+  function scrollGanttPlanIntoView(planId) {
+    if (!planId) return;
+    const sel = 'tr[data-plan-id="' + String(planId).replace(/"/g, '\\"') + '"]';
+    const row = ganttVScroll.querySelector(sel);
+    if (!row) return;
+    const target = row.querySelector("td.treeHead2") || row;
+    target.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   function ensureCommentPopup() {
     if (commentPopup) return;
     const pop = document.createElement("div");
@@ -1097,6 +1113,7 @@
 
             (tk.plans || []).forEach((pl) => {
               const box = document.createElement("div");
+              box.dataset.planId = pl.id;
               box.style.padding = "6px 8px 8px 14px";
               box.style.margin = "4px 0";
               box.style.border = "1px solid #ddd";
@@ -1110,14 +1127,23 @@
               ns.textContent = pl.name;
               ns.addEventListener("click", () => startEditLabel(ns, (v) => { pl.name = v || pl.name; markDirty(state, true); }));
               title.appendChild(ns);
-              title.appendChild(addBtn("この plan を選択", () => {
-                state.selectedPlanId = pl.id;
-                renderAll();
-              }));
               box.appendChild(title);
 
               const fields = document.createElement("div");
               fields.className = "planFields";
+              const selectPlanInLeftPane = () => {
+                if (state.selectedPlanId !== pl.id) {
+                  state.selectedPlanId = pl.id;
+                  leftPane.querySelectorAll("[data-plan-id]").forEach((el) => {
+                    el.style.background = el.dataset.planId === state.selectedPlanId ? "#fffbe6" : "#fff";
+                  });
+                  // 左ペイン再描画を避け、編集中のフォーカスを維持する
+                  renderGantt();
+                }
+                scrollGanttPlanIntoView(state.selectedPlanId);
+              };
+              box.addEventListener("focusin", selectPlanInLeftPane);
+              box.addEventListener("click", selectPlanInLeftPane);
 
               function addMiniRow() {
                 const row = document.createElement("div");
@@ -1565,6 +1591,7 @@
       vis.forEach((pl, i) => {
         const tr = document.createElement("tr");
         tr.className = "planRow" + (state.selectedPlanId === pl.id ? " selected" : "");
+        tr.dataset.planId = pl.id;
         if (i === 0) {
           const t2 = document.createElement("td");
           t2.className = "treeHead nameCell";
@@ -1578,6 +1605,7 @@
         tPlan.addEventListener("click", () => {
           state.selectedPlanId = pl.id;
           renderAll();
+          scrollLeftPlanIntoView(state.selectedPlanId);
         });
         tr.appendChild(tPlan);
         appendPlanDayCells(tr, dom, pr, vr, pl);
