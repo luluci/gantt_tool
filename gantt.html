@@ -24,6 +24,8 @@
       --holiday-strong: #ffd7dc;
       --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
       --cal-head-row-h: 20px;
+      --tree-head1-w: 200px;
+      --tree-head2-w: 100px;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; font-family: var(--font); font-size: 13px; }
@@ -81,10 +83,10 @@
       border: 1px solid var(--border); padding: 2px 4px; vertical-align: middle;
     }
     .treeHead {
-      width: 120px; background: #eee; position: sticky; left: 0; z-index: 100;
+      width: var(--tree-head1-w); background: #eee; position: sticky; left: 0; z-index: 100;
     }
     .treeHead2 {
-      width: 140px; background: #eee; position: sticky; left: 120px; z-index: 100;
+      width: var(--tree-head2-w); background: #eee; position: sticky; left: var(--tree-head1-w); z-index: 100;
     }
     table.gantt thead th {
       position: sticky;
@@ -136,7 +138,7 @@
     }
     .calStickyLabel {
       position: sticky;
-      left: 260px;
+      left: calc(var(--tree-head1-w) + var(--tree-head2-w));
       display: inline-block;
       padding-left: 6px;
       white-space: nowrap;
@@ -1524,13 +1526,42 @@
     return d ? WD_JP[d.getDay()] : "";
   }
 
+  function computeTreeHead2WidthPx() {
+    const labels = ["—"];
+    state.data.domains.forEach((dom) => {
+      labels.push(dom.name || "");
+      (dom.projects || []).forEach((pr) => {
+        labels.push(pr.name || "");
+        (pr.versions || []).forEach((vr) => {
+          labels.push(vr.name || "");
+          (vr.tasks || []).forEach((tk) => {
+            (tk.plans || []).forEach((pl) => labels.push(pl.name || ""));
+          });
+        });
+      });
+    });
+    const minsize = 30;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return minsize;
+    ctx.font = "13px " + getComputedStyle(document.documentElement).getPropertyValue("--font").trim();
+    let maxW = 0;
+    labels.forEach((txt) => {
+      const w = ctx.measureText(String(txt)).width;
+      if (w > maxW) maxW = w;
+    });
+    return Math.max(minsize, Math.ceil(maxW) + 15);
+  }
+
   function renderGantt(datesOverride) {
     const dates = datesOverride || getDateRange(state);
     const commentRefs = [];
     const tbl = document.createElement("table");
     tbl.className = "gantt";
+    const treeHead2W = computeTreeHead2WidthPx();
+    tbl.style.setProperty("--tree-head2-w", treeHead2W + "px");
     const colgroup = document.createElement("colgroup");
-    colgroup.innerHTML = '<col class="treeHead" /><col class="treeHead2" />' +
+    colgroup.innerHTML = '<col class="treeHead" style="width:var(--tree-head1-w)" /><col class="treeHead2" style="width:' + treeHead2W + 'px" />' +
       dates.map(() => '<col style="width:28px" />').join("");
     tbl.appendChild(colgroup);
     const thead = document.createElement("thead");
