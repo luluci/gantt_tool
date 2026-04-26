@@ -165,13 +165,13 @@
     }
     .inputPanePlan table.hourTable tr.hourTableHeaderRow th.hourTableHeaderLabel {
       width: 50px;
-      padding: 4px;
+      padding: 2px 4px;
       background: #eee;
       border: 1px solid var(--border);
     }
     .inputPanePlan table.hourTable tr.hourTableHeaderRow th {
       width: 30px;
-      padding: 4px;
+      padding: 2px 4px;
       background: #eee;
       border: 1px solid var(--border);
     }
@@ -189,6 +189,34 @@
       background: #eee;
       border: 1px solid var(--border);
       padding: 4px !important;
+    }
+
+    .dateTable {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 4px 0;
+    }
+    .dateTable th, .dateTable td {
+      border: 1px solid var(--border);
+      padding: 1px;
+      text-align: left;
+    }
+    .dateTable th {
+      background: #eee;
+      font-weight: bold;
+    }
+    .dateTable input {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 12px;
+    }
+    .dateTable .dateTableHeader {
+      width: 50px;
+      text-align: center;
+      border: 1px solid var(--border);
+      padding: 2px 4px;
+      background: #eee;
+      font-weight: bold;
     }
 
     #resizer {
@@ -1374,6 +1402,74 @@
               box.addEventListener("focusin", selectPlanInLeftPane);
               box.addEventListener("click", selectPlanInLeftPane);
 
+              // 開始日と終了日をまとめたテーブル
+              {
+                const dateTable = document.createElement("table");
+                dateTable.className = "dateTable";
+                // ヘッダー行
+                const headerRow = document.createElement("tr");
+                const headerLabel = document.createElement("th");
+                headerLabel.className = "dateTableHeader";
+                headerRow.appendChild(headerLabel);
+                const startHeader = document.createElement("th");
+                startHeader.className = "dateTableHeader";
+                startHeader.textContent = "開始日";
+                headerRow.appendChild(startHeader);
+                const endHeader = document.createElement("th");
+                endHeader.className = "dateTableHeader";
+                endHeader.textContent = "終了日";
+                headerRow.appendChild(endHeader);
+                dateTable.appendChild(headerRow);
+                // 予定行
+                const plannedRow = document.createElement("tr");
+                const plannedLabel = document.createElement("td");
+                plannedLabel.className = "dateTableHeader";
+                plannedLabel.textContent = "予定";
+                plannedRow.appendChild(plannedLabel);
+                const plannedStartCell = document.createElement("td");
+                const inpStart = document.createElement("input");
+                inpStart.type = "date";
+                inpStart.value = pl.plannedStart || "";
+                inpStart.addEventListener("change", () => {
+                  pl.plannedStart = inpStart.value;
+                  pl.plannedEnd = computePlannedEnd(pl, state);
+                  markDirty(state, true);
+                  renderAll();
+                });
+                plannedStartCell.appendChild(inpStart);
+                plannedRow.appendChild(plannedStartCell);
+                const plannedEndCell = document.createElement("td");
+                const inpEnd = document.createElement("input");
+                inpEnd.type = "text";
+                inpEnd.readOnly = true;
+                inpEnd.value = pl.plannedEnd || "";
+                plannedEndCell.appendChild(inpEnd);
+                plannedRow.appendChild(plannedEndCell);
+                dateTable.appendChild(plannedRow);
+                // 実績行
+                const actualRow = document.createElement("tr");
+                const actualLabel = document.createElement("td");
+                actualLabel.textContent = "実績";
+                actualLabel.className = "dateTableHeader";
+                actualRow.appendChild(actualLabel);
+                const actualStartCell = document.createElement("td");
+                const aS = document.createElement("input");
+                aS.type = "date";
+                aS.value = pl.actualStart || "";
+                aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
+                actualStartCell.appendChild(aS);
+                actualRow.appendChild(actualStartCell);
+                const actualEndCell = document.createElement("td");
+                const aE = document.createElement("input");
+                aE.type = "date";
+                aE.value = pl.actualEnd || "";
+                aE.addEventListener("change", () => { pl.actualEnd = aE.value; markDirty(state, true); renderAll(); });
+                actualEndCell.appendChild(aE);
+                actualRow.appendChild(actualEndCell);
+                dateTable.appendChild(actualRow);
+                fields.appendChild(dateTable);
+              }
+
               function addMiniRow() {
                 const row = document.createElement("div");
                 row.className = "planRowH";
@@ -1386,35 +1482,6 @@
                 lab.appendChild(el);
                 row.appendChild(lab);
               }
-
-              const rowP = addMiniRow();
-              const inpStart = document.createElement("input");
-              inpStart.type = "date";
-              inpStart.value = pl.plannedStart || "";
-              inpStart.addEventListener("change", () => {
-                pl.plannedStart = inpStart.value;
-                pl.plannedEnd = computePlannedEnd(pl, state);
-                markDirty(state, true);
-                renderAll();
-              });
-              addLabeled(rowP, "予定開始", inpStart);
-              const inpEnd = document.createElement("input");
-              inpEnd.type = "text";
-              inpEnd.readOnly = true;
-              inpEnd.value = pl.plannedEnd || "";
-              addLabeled(rowP, "予定終了", inpEnd);
-
-              const rowA = addMiniRow();
-              const aS = document.createElement("input");
-              aS.type = "date";
-              aS.value = pl.actualStart || "";
-              aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
-              addLabeled(rowA, "実績開始", aS);
-              const aE = document.createElement("input");
-              aE.type = "date";
-              aE.value = pl.actualEnd || "";
-              aE.addEventListener("change", () => { pl.actualEnd = aE.value; markDirty(state, true); renderAll(); });
-              addLabeled(rowA, "実績終了", aE);
 
 
               // phaseごとの工数入力（allは集計用で編集不可）
