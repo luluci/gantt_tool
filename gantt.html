@@ -294,7 +294,9 @@
       border-left: 1px solid var(--border);
     }
     table.gantt thead th.treeHead, table.gantt thead th.treeHead2 { z-index: 120; }
-    .dayHead { width: 28px; height: var(--cal-head-row-h); font-size: 10px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0; }
+    .dayHead {
+      width: 28px; height: var(--cal-head-row-h); font-size: 10px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0;
+    }
     table.gantt thead tr.calYear th.dayHead,
     table.gantt thead tr.calMonth th.dayHead {
       text-align: left;
@@ -308,10 +310,27 @@
       white-space: nowrap;
       z-index: 45;
     }
-    .daycell { width: 28px; height: 22px; padding: 0; text-align: center; font-size: 12px; cursor: cell; user-select: none; vertical-align: top; }
+    .daycell {
+      width: 28px; height: 22px; padding: 0; text-align: center; font-size: 12px; cursor: cell; user-select: none; vertical-align: top;
+    }
     .daycell.dark { background: var(--bg-darkcol); color: #bbb; cursor: default; }
     .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
-    .manhoursRow td.daycell { background: #f5f5f5; text-align: center; font-size: 11px; font-weight: bold; cursor: default; height: 24px; }
+
+    .manhoursRow td.treeHead {
+      font-weight: bold;
+    }
+    .manhoursRow td.daycell {
+      background: #f5f5f5;
+      text-align: center;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: default;
+      height: 24px;
+      
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border);
+    }
     .planRow td.treeHead2 {
       border: 1px solid var(--border);
     }
@@ -325,6 +344,12 @@
     .nameCell input { width: 100%; box-sizing: border-box; }
     .planRow.selected td.treeHead,
     .planRow.selected td.treeHead2 {
+      background: var(--selected);
+    }
+    .manhoursRow.selected td.daycell {
+      box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent);
+    }
+    .manhoursRow.selected td.treeHead {
       background: var(--selected);
     }
     .dpvRow td.treeHead {
@@ -755,11 +780,13 @@
     data: emptyData(),
     caseFilter: [],
     selectedPlanId: null,
+    selectedManhoursRow: null,
     leftPaneWidth: 340,
     topPaneHeight: null,
     commentDisplayMode: "always",
     commentContextKey: null,
     inputPaneVisible: true,
+    manhoursExpanded: true,
     dirty: false,
     fileHandle: null,
     drag: null,
@@ -1881,7 +1908,6 @@
       const tr = document.createElement("tr");
       tr.className = "treeRow manhoursRow";
       tr.style.background = bgColor;
-      tr.style.fontWeight = "bold";
       const labelCell = document.createElement("td");
       labelCell.className = "treeHead";
       labelCell.colSpan = 2;
@@ -1894,9 +1920,6 @@
         const td = document.createElement("td");
         td.className = "daycell";
         td.style.background = bgColor;
-        td.style.textAlign = "center";
-        td.style.fontSize = "11px";
-        td.style.fontWeight = "bold";
         
         // 当日の総工数を計算
         let totalHours = 0;
@@ -1925,17 +1948,55 @@
       return tr;
     }
 
-    // 総合人工行（全case）
-    thead.appendChild(createManhoursRow("総合人工", () => true, "#e8e8e8", 0));
+    // 総合人工行（クリック可能、集計行の表示非表示を切り替え）
+    const totalManhoursRow = document.createElement("tr");
+    totalManhoursRow.className = "treeRow manhoursRow manhoursHeader";
+    totalManhoursRow.style.background = "#e8e8e8";
+    totalManhoursRow.style.fontWeight = "bold";
+    totalManhoursRow.style.cursor = "pointer";
+    const totalLabelCell = document.createElement("td");
+    totalLabelCell.className = "treeHead";
+    totalLabelCell.colSpan = 2;
+    totalLabelCell.style.background = "#e8e8e8";
+    // totalLabelCell.style.userSelect = "none";
+    totalLabelCell.textContent = "総合人工 (" + (state.manhoursExpanded ? "▼" : "▶") + ")";
+    totalManhoursRow.appendChild(totalLabelCell);
+    
+    //dates.forEach((ds) => {
+      const td = document.createElement("td");
+      td.className = "daycell";
+      td.colSpan = dates.length;
+      td.style.background = "#e8e8e8";
+      td.style.textAlign = "center";
+      td.style.fontSize = "11px";
+      td.style.fontWeight = "bold";
+      td.style.cursor = "pointer";
+      td.style.userSelect = "none";
+      td.textContent = "";
+      totalManhoursRow.appendChild(td);
+    //});
+    
+    totalManhoursRow.addEventListener("click", () => {
+      state.manhoursExpanded = !state.manhoursExpanded;
+      renderGantt();
+    });
+    
+    thead.appendChild(totalManhoursRow);
 
     // Case別の集計行
     state.data.cases.forEach((cse) => {
       // Case別総合行
-      thead.appendChild(createManhoursRow("Case: " + cse.name, (pl) => pl.caseId === cse.id, "#f0f0f0", 0));
+      const caseRow = createManhoursRow("Case: " + cse.name, (pl) => pl.caseId === cse.id, "#f0f0f0", 0);
+      caseRow.className += " manhoursDetailRow";
+      if (!state.manhoursExpanded) caseRow.style.display = "none";
+      thead.appendChild(caseRow);
       
       // Domain別の集計行
       state.data.domains.forEach((dom) => {
-        thead.appendChild(createManhoursRow("  └ " + dom.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id, "#f8f8f8", 1));
+        const domRow = createManhoursRow("  └ " + dom.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id, "#f8f8f8", 1);
+        domRow.className += " manhoursDetailRow";
+        if (!state.manhoursExpanded) domRow.style.display = "none";
+        thead.appendChild(domRow);
       });
     });
 
