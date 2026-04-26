@@ -27,6 +27,7 @@
       --tree-head1-w: 200px;
       --tree-head2-w: 100px;
 
+      --bg-header: #2f4cac;
       --bg-domain: #404050;
       --bg-project: #707080;
       --bg-version: #c8c8c8;
@@ -69,7 +70,7 @@
     #leftPane.hidden { display: none; }
     .inputPaneHeader {
       padding: 6px;
-      background: #2f4cac;
+      background: var(--bg-header);
       border-color: 3a68ff;
       color: #fff;
 
@@ -325,12 +326,37 @@
       font-size: 11px;
       font-weight: bold;
       cursor: default;
-      height: 24px;
+      height: var(--cal-head-row-h);
       
       border-bottom: 1px solid var(--border);
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
     }
+    .manhoursHeader td.treeHead {
+      background: var(--bg-header);
+      border-color: var(--bg-header);
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .manhoursHeader td.daycell {
+      background: var(--bg-header) !important;
+      border-color: var(--bg-header) !important;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .manhoursCaseDetailRow td.treeHead {
+      background: #e4d7bf;
+    }
+    .manhoursCaseDetailRow td.daycell {
+      background: #e4d7bf !important;
+      height: var(--cal-head-row-h);
+    }
+    .manhoursDomainDetailRow td.daycell {
+      height: var(--cal-head-row-h);
+    }
+
     .planRow td.treeHead2 {
       border: 1px solid var(--border);
     }
@@ -346,12 +372,7 @@
     .planRow.selected td.treeHead2 {
       background: var(--selected);
     }
-    .manhoursRow.selected td.daycell {
-      box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent);
-    }
-    .manhoursRow.selected td.treeHead {
-      background: var(--selected);
-    }
+
     .dpvRow td.treeHead {
       font-weight: 700;
       border: none;
@@ -1904,14 +1925,12 @@
     addDayHeaderRow("calWeek", (ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
 
     // 人工数集計行を追加
-    function createManhoursRow(label, filterFn, bgColor = "#f5f5f5", depth = 0) {
+    function createManhoursRow(label, filterFn, depth = 0) {
       const tr = document.createElement("tr");
       tr.className = "treeRow manhoursRow";
-      tr.style.background = bgColor;
       const labelCell = document.createElement("td");
       labelCell.className = "treeHead";
       labelCell.colSpan = 2;
-      labelCell.style.background = bgColor;
       labelCell.style.paddingLeft = (8 + depth * 16) + "px";
       labelCell.textContent = label;
       tr.appendChild(labelCell);
@@ -1919,7 +1938,6 @@
       dates.forEach((ds) => {
         const td = document.createElement("td");
         td.className = "daycell";
-        td.style.background = bgColor;
         
         // 当日の総工数を計算
         let totalHours = 0;
@@ -1951,13 +1969,9 @@
     // 総合人工行（クリック可能、集計行の表示非表示を切り替え）
     const totalManhoursRow = document.createElement("tr");
     totalManhoursRow.className = "treeRow manhoursRow manhoursHeader";
-    totalManhoursRow.style.background = "#e8e8e8";
-    totalManhoursRow.style.fontWeight = "bold";
-    totalManhoursRow.style.cursor = "pointer";
     const totalLabelCell = document.createElement("td");
     totalLabelCell.className = "treeHead";
     totalLabelCell.colSpan = 2;
-    totalLabelCell.style.background = "#e8e8e8";
     // totalLabelCell.style.userSelect = "none";
     totalLabelCell.textContent = "総合人工 (" + (state.manhoursExpanded ? "▼" : "▶") + ")";
     totalManhoursRow.appendChild(totalLabelCell);
@@ -1966,12 +1980,6 @@
       const td = document.createElement("td");
       td.className = "daycell";
       td.colSpan = dates.length;
-      td.style.background = "#e8e8e8";
-      td.style.textAlign = "center";
-      td.style.fontSize = "11px";
-      td.style.fontWeight = "bold";
-      td.style.cursor = "pointer";
-      td.style.userSelect = "none";
       td.textContent = "";
       totalManhoursRow.appendChild(td);
     //});
@@ -1986,15 +1994,15 @@
     // Case別の集計行
     state.data.cases.forEach((cse) => {
       // Case別総合行
-      const caseRow = createManhoursRow("Case: " + cse.name, (pl) => pl.caseId === cse.id, "#f0f0f0", 0);
-      caseRow.className += " manhoursDetailRow";
+      const caseRow = createManhoursRow("Case: " + cse.name, (pl) => pl.caseId === cse.id, 0);
+      caseRow.className += " manhoursCaseDetailRow";
       if (!state.manhoursExpanded) caseRow.style.display = "none";
       thead.appendChild(caseRow);
       
       // Domain別の集計行
       state.data.domains.forEach((dom) => {
-        const domRow = createManhoursRow("  └ " + dom.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id, "#f8f8f8", 1);
-        domRow.className += " manhoursDetailRow";
+        const domRow = createManhoursRow("  └ " + dom.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id, 1);
+        domRow.className += " manhoursDomainDetailRow";
         if (!state.manhoursExpanded) domRow.style.display = "none";
         thead.appendChild(domRow);
       });
