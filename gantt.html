@@ -340,6 +340,7 @@
       color: #fff;
       font-weight: bold;
       cursor: pointer;
+      z-index: 50;
     }
     .manhoursHeader td.daycell {
       background: var(--bg-header) !important;
@@ -350,7 +351,8 @@
     }
     .manhoursCaseDetailRow td.treeHead {
       background: #e4d7bf;
-      border-left: 1px solid var(--border);
+        border-left: 1px solid var(--border);
+        z-index: 50;
     }
     .manhoursCaseDetailRow td.daycell {
       background: #e4d7bf !important;
@@ -358,6 +360,7 @@
     }
     .manhoursDomainDetailRow td.treeHead {
       border-left: 1px solid var(--border);
+      z-index: 50;
     }
     .manhoursDomainDetailRow td.daycell {
       height: var(--cal-head-row-h);
@@ -1937,7 +1940,7 @@
       const labelCell = document.createElement("td");
       labelCell.className = "treeHead";
       labelCell.colSpan = 2;
-      labelCell.style.paddingLeft = (8 + depth * 16) + "px";
+      labelCell.style.paddingLeft = (8 + depth * 10) + "px";
       labelCell.textContent = label;
       tr.appendChild(labelCell);
       
