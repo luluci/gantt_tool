@@ -154,9 +154,41 @@
     }
     .inputPanePlan {
       margin: 4px;
-      padding: 6px 8px 8px 14px;
+      padding: 6px;
       border: 1px solid #ddd;
       border-radius: 4px;
+    }
+    .inputPanePlan table.hourTable {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .inputPanePlan table.hourTable tr.hourTableHeaderRow th.hourTableHeaderLabel {
+      width: 50px;
+      padding: 4px;
+      background: #eee;
+      border: 1px solid var(--border);
+    }
+    .inputPanePlan table.hourTable tr.hourTableHeaderRow th {
+      width: 30px;
+      padding: 4px;
+      background: #eee;
+      border: 1px solid var(--border);
+    }
+    .inputPanePlan table.hourTable tr.hourTableRow td {
+      border: 1px solid var(--border);
+      padding: 0px;
+      text-align: right;
+    }
+    .inputPanePlan table.hourTable tr.hourTableRow td input {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 12px;
+    }
+    .inputPanePlan table.hourTable td.hourTableLabel {
+      background: #eee;
+      border: 1px solid var(--border);
+      padding: 4px !important;
     }
 
     #resizer {
@@ -1371,6 +1403,95 @@
               inpEnd.readOnly = true;
               inpEnd.value = pl.plannedEnd || "";
               addLabeled(rowP, "予定終了", inpEnd);
+
+              const rowA = addMiniRow();
+              const aS = document.createElement("input");
+              aS.type = "date";
+              aS.value = pl.actualStart || "";
+              aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
+              addLabeled(rowA, "実績開始", aS);
+              const aE = document.createElement("input");
+              aE.type = "date";
+              aE.value = pl.actualEnd || "";
+              aE.addEventListener("change", () => { pl.actualEnd = aE.value; markDirty(state, true); renderAll(); });
+              addLabeled(rowA, "実績終了", aE);
+
+
+              // phaseごとの工数入力（allは集計用で編集不可）
+              // tableで構築。
+              const rowHour = addMiniRow();
+              // 工数入力用のテーブルを作成
+              const hourTable = document.createElement("table");
+              hourTable.className = "hourTable";
+              // header行の作成
+              const headerRow = document.createElement("tr");
+              headerRow.className = "hourTableHeaderRow";
+              const headerLabel = document.createElement("th");
+              headerLabel.textContent = "工数(hr)";
+              headerLabel.className = "hourTableHeaderLabel";
+              headerRow.appendChild(headerLabel);
+              // 予定工数行の作成
+              const plannedRow = document.createElement("tr");
+              plannedRow.className = "hourTableRow";
+              const plannedLabel = document.createElement("td");
+              plannedLabel.textContent = "予定";
+              plannedLabel.className = "hourTableLabel";
+              plannedRow.appendChild(plannedLabel);
+              // 実績工数行の作成
+              const actualRow = document.createElement("tr");
+              actualRow.className = "hourTableRow";
+              const actualLabel = document.createElement("td");
+              actualLabel.textContent = "実績";
+              actualLabel.className = "hourTableLabel";
+              actualRow.appendChild(actualLabel);
+              // phase列の追加
+              d.phases.forEach((ph) => {
+                // headerにphase名を追加
+                const thPh = document.createElement("th");
+                thPh.textContent = ph;
+                thPh.className = "hourTableHeaderPhase";
+                headerRow.appendChild(thPh);
+                // 予定工数行に入力欄を追加
+                const tdP = document.createElement("td");
+                const inpP = document.createElement("input");
+                inpP.className = "hourInput";
+                inpP.type = "text";
+                inpP.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].planned) || 0);
+                if (ph === "all") {
+                  inpP.readOnly = true;
+                  inpP.title = "ガントのセル入力から集計（チャート反映）";
+                } else {
+                  inpP.addEventListener("change", () => {
+                    syncPhaseTotalsFromField(state, pl, ph, "planned", inpP.value);
+                    pl.plannedEnd = computePlannedEnd(pl, state);
+                    markDirty(state, true);
+                    renderAll();
+                  });
+                }
+                tdP.appendChild(inpP);
+                plannedRow.appendChild(tdP);
+                // 実績工数行に入力欄を追加
+                const tdA = document.createElement("td");
+                const inpA = document.createElement("input");
+                inpA.className = "hourInput";
+                inpA.type = "text";
+                inpA.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].actual) || 0);
+                inpA.addEventListener("change", () => {
+                  syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
+                  markDirty(state, true);
+                  renderAll();
+                });
+                tdA.appendChild(inpA);
+                actualRow.appendChild(tdA);
+              });
+              // tableに行を追加
+              hourTable.appendChild(headerRow);
+              hourTable.appendChild(plannedRow);
+              hourTable.appendChild(actualRow);
+              rowHour.appendChild(hourTable);
+
+
+              const rowSelect = addMiniRow();
               const inpUtil = document.createElement("input");
               inpUtil.type = "number";
               inpUtil.step = "0.1";
@@ -1383,13 +1504,8 @@
                 markDirty(state, true);
                 renderAll();
               });
-              addLabeled(rowP, "稼働率", inpUtil);
-              const hrsAll = document.createElement("input");
-              hrsAll.type = "text";
-              hrsAll.readOnly = true;
-              hrsAll.style.maxWidth = "5em";
-              hrsAll.value = String((pl.phaseHours.all && pl.phaseHours.all.planned) || 0);
-              addLabeled(rowP, "工数(all)", hrsAll);
+              addLabeled(rowSelect, "稼働率", inpUtil);
+              // case選択
               const selCase = document.createElement("select");
               d.cases.forEach((c) => {
                 const o = document.createElement("option");
@@ -1411,7 +1527,8 @@
                   renderAll();
                 }
               });
-              addLabeled(rowP, "case", selCase);
+              addLabeled(rowSelect, "case", selCase);
+              // owner選択
               const selOwn = document.createElement("select");
               d.members.forEach((m) => {
                 const o = document.createElement("option");
@@ -1433,7 +1550,7 @@
                   renderAll();
                 }
               });
-              addLabeled(rowP, "owner", selOwn);
+              addLabeled(rowSelect, "owner", selOwn);
               const colPick = document.createElement("input");
               colPick.type = "color";
               colPick.style.maxWidth = "3em";
@@ -1443,7 +1560,7 @@
                 markDirty(state, true);
                 renderAll();
               });
-              addLabeled(rowP, "色", colPick);
+              addLabeled(rowSelect, "色", colPick);
               const selSt = document.createElement("select");
               d.statuses.forEach((s) => {
                 const o = document.createElement("option");
@@ -1457,75 +1574,7 @@
                 markDirty(state, true);
                 renderAll();
               });
-              addLabeled(rowP, "status", selSt);
-
-              const rowA = addMiniRow();
-              const aS = document.createElement("input");
-              aS.type = "date";
-              aS.value = pl.actualStart || "";
-              aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
-              addLabeled(rowA, "実績開始", aS);
-              const aE = document.createElement("input");
-              aE.type = "date";
-              aE.value = pl.actualEnd || "";
-              aE.addEventListener("change", () => { pl.actualEnd = aE.value; markDirty(state, true); renderAll(); });
-              addLabeled(rowA, "実績終了", aE);
-              const actH = document.createElement("input");
-              actH.type = "number";
-              actH.readOnly = true;
-              actH.style.maxWidth = "5em";
-              actH.value = String((pl.phaseHours.all && pl.phaseHours.all.actual) || 0);
-              addLabeled(rowA, "実績工数(all)", actH);
-
-              const rowPh = addMiniRow();
-              rowPh.style.fontSize = "10px";
-              rowPh.style.color = "#555";
-              const phLab = document.createElement("span");
-              phLab.textContent = "phase（all以外は管理用）: ";
-              rowPh.appendChild(phLab);
-              d.phases.forEach((ph) => {
-                const wrap = document.createElement("span");
-                wrap.style.display = "inline-flex";
-                wrap.style.alignItems = "center";
-                wrap.style.gap = "2px";
-                wrap.style.marginRight = "8px";
-                const lab = document.createElement("span");
-                lab.textContent = ph + " ";
-                const inpP = document.createElement("input");
-                inpP.type = "number";
-                inpP.step = "0.25";
-                inpP.min = "0";
-                inpP.style.width = "3.5em";
-                inpP.value = (pl.phaseHours[ph] && pl.phaseHours[ph].planned) || 0;
-                if (ph === "all") {
-                  inpP.readOnly = true;
-                  inpP.title = "ガントのセル入力から集計（チャート反映）";
-                } else {
-                  inpP.addEventListener("change", () => {
-                    syncPhaseTotalsFromField(state, pl, ph, "planned", inpP.value);
-                    pl.plannedEnd = computePlannedEnd(pl, state);
-                    markDirty(state, true);
-                    renderAll();
-                  });
-                }
-                const inpA = document.createElement("input");
-                inpA.type = "number";
-                inpA.step = "0.25";
-                inpA.min = "0";
-                inpA.style.width = "3.5em";
-                inpA.value = (pl.phaseHours[ph] && pl.phaseHours[ph].actual) || 0;
-                inpA.addEventListener("change", () => {
-                  syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
-                  markDirty(state, true);
-                  renderAll();
-                });
-                wrap.appendChild(lab);
-                wrap.appendChild(document.createTextNode("予"));
-                wrap.appendChild(inpP);
-                wrap.appendChild(document.createTextNode("実"));
-                wrap.appendChild(inpA);
-                rowPh.appendChild(wrap);
-              });
+              addLabeled(rowSelect, "status", selSt);
 
               box.appendChild(fields);
               te.appendChild(box);
