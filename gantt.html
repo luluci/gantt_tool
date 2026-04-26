@@ -144,7 +144,7 @@
       white-space: nowrap;
       z-index: 45;
     }
-    .daycell { width: 28px; height: 22px; padding: 0; text-align: center; font-size: 9px; cursor: cell; user-select: none; vertical-align: top; }
+    .daycell { width: 28px; height: 22px; padding: 0; text-align: center; font-size: 12px; cursor: cell; user-select: none; vertical-align: top; }
     .daycell.dark { background: var(--bg-darkcol); color: #bbb; cursor: default; }
     .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
     .planRow td.treeHead2 {
@@ -345,10 +345,8 @@
   function cellIsOn(plan, dateStr) {
     const c = plan.cells[dateStr];
     if (c == null) return false;
-    if (c === true) return true;
     if (typeof c !== "object") return false;
     const rawKeys = Object.keys(c);
-    if (rawKeys.length === 0) return true;
     const keys = rawKeys.filter((k) => k === "util");
     if (keys.length === 0) return false;
     return true;
@@ -1687,7 +1685,7 @@
         const uShow = cellIsOn(pl, ds) && Math.abs(effectiveCellUtil(pl, ds) - (pl.utilization || 1)) > 1e-5;
         fill.textContent = uShow ? String(effectiveCellUtil(pl, ds)) : "";
         fill.style.color = hrs > 0 ? "#111" : "";
-        fill.style.fontSize = "9px";
+        // fill.style.fontSize = "9px";
         fill.style.lineHeight = "20px";
 
         const actH = actualHoursOnDate(pl, ds, state);
@@ -1908,6 +1906,57 @@
     return 0;
   }
 
+  function inputCellUtil(plan, ds) {
+    const cell = plan.cells[ds] || (plan.cells[ds] = {});
+    const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
+    const curU = effectiveCellUtil(plan, ds);
+
+    // クリックされたセル要素を検索
+    const td = ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"]');
+    const curText = td.textContent;
+    td.textContent = String(curU); 
+    td.contentEditable = "true";
+    td.focus();
+    // テキストを全選択
+    document.execCommand("selectAll", false, null);
+    const onChange = () => {
+      // 空白でキャンセル
+      if (td.textContent.trim() === "") {
+        td.textContent = curText;
+        td.contentEditable = "false";
+        return;
+      }
+      // 入力値を数値として解析
+      const val = Number(td.textContent);
+      if (isNaN(val)) {
+        alert("有効な数値を入力してください（0で削除）");
+        td.textContent = String(curU);
+        td.focus();
+        return;
+      }
+      if (val < 1e-5) {
+        delete cell.util;
+      } else {
+        cell.util = val;
+      }
+      td.contentEditable = "false";
+      markDirty(state, true);
+      renderAll();
+    };
+    td.addEventListener("blur", onChange);
+    // Enterキーで確定、Escキーでキャンセル
+    td.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        onChange();
+      } else if (e.key === "Escape") {
+        td.textContent = curText;
+        td.contentEditable = "false";
+      }
+    });
+
+    markDirty(state, true);
+  }
+
   function cycleCellUtil(plan, ds) {
     const cell = plan.cells[ds] || (plan.cells[ds] = {});
     const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
@@ -1960,6 +2009,7 @@
       onCellPointerMove(ev, pln);
     };
     const onUp = (ev) => {
+      let requireRender = true;
       td.releasePointerCapture(ev.pointerId);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
@@ -1967,9 +2017,10 @@
       if (dg && pln) {
         if (dg.mode === "click" && !dg.dragMoved && pln) {
           if (!cellIsOn(pln, ds)) {
+            const util0 = pln.utilization == null ? 1 : Number(pln.utilization);
             let cell = pln.cells[ds];
             if (!cell || typeof cell !== "object" || cell === true) cell = {};
-            if (!cell.util) cell.util = 1;
+            if (!cell.util) cell.util = util0;
             pln.cells[ds] = cell;
 
             const minCellDate = earliestInputCellDate(pln);
@@ -1979,9 +2030,11 @@
             markDirty(state, true);
           }
         } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
-          cycleCellUtil(pln, ds);
+          // セル移動なし:クリックのみ:稼働率処理
+          inputCellUtil(pln, ds);
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
+          requireRender = false;
         } else if (dg.changed) {
           const minCellDate = earliestInputCellDate(pln);
           if (minCellDate) pln.plannedStart = minCellDate;
@@ -1990,7 +2043,9 @@
         }
       }
       state.drag = null;
-      renderAll();
+      if (requireRender) {
+        renderAll();
+      }
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -2048,10 +2103,11 @@
           addIdx--;
           if (addIdx < 0) return;
           if (isHolidayDate(dates[addIdx], pl, state)) continue;
+          const util0 = pl.utilization == null ? 1 : Number(pl.utilization);
 
           let nextCell = nextCells[dates[addIdx]];
           if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
-          nextCell.util = 1;
+          nextCell.util = util0;
           nextCells[dates[addIdx]] = nextCell;
 
           need--;
@@ -2074,10 +2130,11 @@
           addIdx++;
           if (addIdx >= dates.length) return;
           if (isHolidayDate(dates[addIdx], pl, state)) continue;
+          const util0 = pl.utilization == null ? 1 : Number(pl.utilization);
 
           let nextCell = nextCells[dates[addIdx]];
           if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
-          nextCell.util = 1;
+          nextCell.util = util0;
           nextCells[dates[addIdx]] = nextCell;
           
           need--;
