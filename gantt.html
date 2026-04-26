@@ -247,6 +247,11 @@
     .treeHead2 {
       width: var(--tree-head2-w); background: #eee; position: sticky; left: var(--tree-head1-w); z-index: 100;
     }
+    table.gantt thead {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+    }
     table.gantt thead th {
       position: sticky;
       z-index: 40;
@@ -306,6 +311,7 @@
     .daycell { width: 28px; height: 22px; padding: 0; text-align: center; font-size: 12px; cursor: cell; user-select: none; vertical-align: top; }
     .daycell.dark { background: var(--bg-darkcol); color: #bbb; cursor: default; }
     .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
+    .manhoursRow td.daycell { background: #f5f5f5; text-align: center; font-size: 11px; font-weight: bold; cursor: default; height: 24px; }
     .planRow td.treeHead2 {
       border: 1px solid var(--border);
     }
@@ -1869,6 +1875,69 @@
     addGroupedHeaderRow("calMonth", (ds) => ds.slice(5, 7));
     addDayHeaderRow("calDay", (ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
     addDayHeaderRow("calWeek", (ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
+
+    // 人工数集計行を追加
+    function createManhoursRow(label, filterFn, bgColor = "#f5f5f5", depth = 0) {
+      const tr = document.createElement("tr");
+      tr.className = "treeRow manhoursRow";
+      tr.style.background = bgColor;
+      tr.style.fontWeight = "bold";
+      const labelCell = document.createElement("td");
+      labelCell.className = "treeHead";
+      labelCell.colSpan = 2;
+      labelCell.style.background = bgColor;
+      labelCell.style.paddingLeft = (8 + depth * 16) + "px";
+      labelCell.textContent = label;
+      tr.appendChild(labelCell);
+      
+      dates.forEach((ds) => {
+        const td = document.createElement("td");
+        td.className = "daycell";
+        td.style.background = bgColor;
+        td.style.textAlign = "center";
+        td.style.fontSize = "11px";
+        td.style.fontWeight = "bold";
+        
+        // 当日の総工数を計算
+        let totalHours = 0;
+        state.data.domains.forEach((dom) => {
+          (dom.projects || []).forEach((pr) => {
+            (pr.versions || []).forEach((vr) => {
+              (vr.tasks || []).forEach((tk) => {
+                (tk.plans || []).forEach((pl) => {
+                  if (planMatchesCaseFilter(pl) && filterFn(pl, dom)) {
+                    const hours = dayHoursAll(pl, ds);
+                    totalHours += hours;
+                  }
+                });
+              });
+            });
+          });
+        });
+        
+        // 人工 = 工数 / 8hr
+        const manHours = (totalHours / 8).toFixed(1);
+        td.textContent = manHours;
+        td.title = totalHours + "hr";
+        tr.appendChild(td);
+      });
+      
+      return tr;
+    }
+
+    // 総合人工行（全case）
+    thead.appendChild(createManhoursRow("総合人工", () => true, "#e8e8e8", 0));
+
+    // Case別の集計行
+    state.data.cases.forEach((cse) => {
+      // Case別総合行
+      thead.appendChild(createManhoursRow("Case: " + cse.name, (pl) => pl.caseId === cse.id, "#f0f0f0", 0));
+      
+      // Domain別の集計行
+      state.data.domains.forEach((dom) => {
+        thead.appendChild(createManhoursRow("  └ " + dom.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id, "#f8f8f8", 1));
+      });
+    });
 
     function addDPVRow(label, target, kind) {
       const tr = document.createElement("tr");
