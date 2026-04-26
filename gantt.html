@@ -26,6 +26,13 @@
       --cal-head-row-h: 20px;
       --tree-head1-w: 200px;
       --tree-head2-w: 100px;
+
+      --bg-domain: #404050;
+      --bg-project: #707080;
+      --bg-version: #c8c8c8;
+      --color-domain: #fff;
+      --color-project: #fff;
+      --color-version: #41205f;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; font-family: var(--font); font-size: 13px; }
@@ -60,6 +67,98 @@
       border-right: 1px solid var(--border); overflow: auto; background: #fafafa;
     }
     #leftPane.hidden { display: none; }
+    .inputPaneHeader {
+      padding: 6px;
+      background: #2f4cac;
+      border-color: 3a68ff;
+      color: #fff;
+
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .inputPaneDomain {
+      margin: 0;
+      padding: 0;
+    }
+    .inputPaneDomainHeader {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      margin: 0;
+      padding: 4px 6px;
+
+      background: var(--bg-domain);
+      border-color: var(--bg-domain);
+      color: var(--color-domain);
+
+      position: sticky;
+      z-index: 9;
+    }
+    .inputPaneProject {
+      margin: 0;
+      padding: 0;
+    }
+    .inputPaneProjectHeader {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      margin: 0;
+      padding: 4px 6px;
+
+      background: var(--bg-project);
+      border-color: var(--bg-project);
+      color: var(--color-project);
+
+      position: sticky;
+      z-index: 8;
+    }
+    .inputPaneVersion {
+      margin: 0;
+      padding: 0;
+    }
+    .inputPaneVersionHeader {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      margin: 0;
+      padding: 4px 6px;
+
+      background: var(--bg-version);
+      border-color: var(--bg-version);
+      color: var(--color-version);
+
+      position: sticky;
+      z-index: 7;
+    }
+    .inputPaneTask {
+      margin: 0;
+      padding: 0;
+    }
+    .inputPaneTaskHeader {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      margin: 0;
+      padding: 4px 6px;
+
+      background: #ddd;
+      border-color: #ddd;
+
+      position: sticky;
+      z-index: 6;
+    }
+    .inputPanePlan {
+      margin: 4px;
+      padding: 6px 8px 8px 14px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
     #resizer {
       flex: 0 0 6px; cursor: col-resize; background: #e0e0e0; border-left: 1px solid var(--border);
       border-right: 1px solid var(--border);
@@ -169,9 +268,9 @@
     .dpvRow td.daycell {
       border: none;
     }
-    .dpv-domain td { background: #9fc5ff; border-color: #9fc5ff; color: #0f2f55; }
-    .dpv-project td { background: #9de2b4; border-color: #9de2b4; color: #0f3d24; }
-    .dpv-version td { background: #d8b4fe; border-color: #d8b4fe; color: #41205f; }
+    .dpv-domain td { background: var(--bg-domain); border-color: var(--bg-domain); color: var(--color-domain); }
+    .dpv-project td { background: var(--bg-project); border-color: var(--bg-project); color: var(--color-project); }
+    .dpv-version td { background: var(--bg-version); border-color: var(--bg-version); color: var(--color-version); }
     .muted { color: #666; font-size: 11px; }
     button { cursor: pointer; }
     .treeRow { background: #fff; }
@@ -1107,23 +1206,27 @@
       return b;
     };
 
+    // header要素 / domain追加ボタン
     const head = document.createElement("div");
-    head.style.padding = "6px";
+    head.className = "inputPaneHeader";
     head.appendChild(addBtn("+ domain", () => {
       d.domains.push({ id: uid(), name: "新しい domain", cells: {}, projects: [] });
       markDirty(state, true);
       renderAll();
     }));
     leftPane.appendChild(head);
+    // header要素の高さを取得
+    const inpPaneHeaderH = head.getBoundingClientRect().height;
 
+    // domain / project / version / taskのツリー構造
     d.domains.forEach((dom) => {
+      // domain要素
       const domEl = document.createElement("div");
-      domEl.style.borderBottom = "1px solid #ddd";
+      domEl.className = "inputPaneDomain";
+      // domain header要素
       const dh = document.createElement("div");
-      dh.style.display = "flex";
-      dh.style.alignItems = "center";
-      dh.style.gap = "6px";
-      dh.style.padding = "4px 6px";
+      dh.className = "inputPaneDomainHeader";
+      dh.style.top = inpPaneHeaderH + "px";
       const ds = document.createElement("span");
       ds.className = "nameCell";
       ds.textContent = dom.name;
@@ -1137,12 +1240,12 @@
       domEl.appendChild(dh);
 
       (dom.projects || []).forEach((pr) => {
+        // project要素
         const pe = document.createElement("div");
-        pe.style.paddingLeft = "10px";
+        pe.className = "inputPaneProject";
+        // project header要素
         const ph = document.createElement("div");
-        ph.style.display = "flex";
-        ph.style.gap = "6px";
-        ph.style.padding = "2px 0";
+        ph.className = "inputPaneProjectHeader";
         const ps = document.createElement("span");
         ps.className = "nameCell";
         ps.textContent = pr.name;
@@ -1156,11 +1259,12 @@
         pe.appendChild(ph);
 
         (pr.versions || []).forEach((vr) => {
+          // version要素
           const ve = document.createElement("div");
-          ve.style.paddingLeft = "10px";
+          ve.className = "inputPaneVersion";
+          // version header要素
           const vh = document.createElement("div");
-          vh.style.display = "flex";
-          vh.style.gap = "6px";
+          vh.className = "inputPaneVersionHeader";
           const vs = document.createElement("span");
           vs.className = "nameCell";
           vs.textContent = vr.name;
@@ -1174,11 +1278,11 @@
           ve.appendChild(vh);
 
           (vr.tasks || []).forEach((tk) => {
+            // task要素
             const te = document.createElement("div");
-            te.style.paddingLeft = "10px";
+            te.className = "inputPaneTask";
             const th = document.createElement("div");
-            th.style.display = "flex";
-            th.style.gap = "6px";
+            th.className = "inputPaneTaskHeader";
             const ts = document.createElement("span");
             ts.className = "nameCell";
             ts.textContent = tk.name;
@@ -1210,10 +1314,7 @@
             (tk.plans || []).forEach((pl) => {
               const box = document.createElement("div");
               box.dataset.planId = pl.id;
-              box.style.padding = "6px 8px 8px 14px";
-              box.style.margin = "4px 0";
-              box.style.border = "1px solid #ddd";
-              box.style.borderRadius = "4px";
+              box.className = "inputPanePlan";
               box.style.background = state.selectedPlanId === pl.id ? "#fffbe6" : "#fff";
               const title = document.createElement("div");
               title.style.display = "flex";
@@ -1436,6 +1537,36 @@
         domEl.appendChild(pe);
       });
       leftPane.appendChild(domEl);
+    });
+    // 描画後にsticky headerの位置を調整
+    // domain要素
+    const domains = leftPane.querySelectorAll(".inputPaneDomain");
+    domains.forEach((dom) => {
+      const domHeader = dom.querySelector(".inputPaneDomainHeader");
+      const offsetProject = inpPaneHeaderH + domHeader.getBoundingClientRect().height;
+
+      // project要素
+      const projects = dom.querySelectorAll(".inputPaneProject");
+      projects.forEach((pr) => {
+        const prHeader = pr.querySelector(".inputPaneProjectHeader");
+        const offsetVersion = offsetProject + prHeader.getBoundingClientRect().height;
+        prHeader.style.top = offsetProject + "px";
+
+        // version要素
+        const versions = pr.querySelectorAll(".inputPaneVersion");
+        versions.forEach((vr) => {
+          const vrHeader = vr.querySelector(".inputPaneVersionHeader");
+          const offsetTask = offsetVersion + vrHeader.getBoundingClientRect().height;
+          vrHeader.style.top = offsetVersion + "px";
+
+          // task要素
+          const tasks = vr.querySelectorAll(".inputPaneTask");
+          tasks.forEach((tk) => {
+            const tkHeader = tk.querySelector(".inputPaneTaskHeader");
+            tkHeader.style.top = offsetTask + "px";
+          });
+        });
+      });
     });
   }
 
