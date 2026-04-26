@@ -253,12 +253,14 @@
       top: 0;
       z-index: 200;
     }
-    table.gantt thead th {
+    table.gantt thead th,
+    table.gantt thead td {
       position: sticky;
       z-index: 40;
       border-color: transparent;
     }
-    table.gantt thead th::before {
+    table.gantt thead th::before,
+    table.gantt thead td::before {
       content: "";
       position: absolute;
       inset: -1px -1px 0 0;
@@ -268,28 +270,28 @@
       pointer-events: none;
       z-index: -1;
     }
-    table.gantt thead tr:first-child th::before { border-top: 1px solid var(--border); }
-    table.gantt thead th:first-child::before { border-left: 1px solid var(--border); }
+    table.gantt thead tr:first-child th::before {
+      border-top: 1px solid var(--border);
+    }
+    table.gantt thead th:first-child::before {
+      border-left: 1px solid var(--border);
+    }
     table.gantt thead tr.calYear th {
-      top: 0;
       border-bottom: 1px solid var(--border);
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
     }
     table.gantt thead tr.calMonth th {
-      top: var(--cal-head-row-h);
       border-bottom: 1px solid var(--border);
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
     }
     table.gantt thead tr.calDay th {
-      top: calc(var(--cal-head-row-h) * 2);
       border-bottom: 1px solid var(--border);
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
     }
     table.gantt thead tr.calWeek th {
-      top: calc(var(--cal-head-row-h) * 3);
       border-bottom: 1px solid var(--border);
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
@@ -334,7 +336,7 @@
     }
     .manhoursHeader td.treeHead {
       background: var(--bg-header);
-      border-color: var(--bg-header);
+      border-left: 1px solid var(--border);
       color: #fff;
       font-weight: bold;
       cursor: pointer;
@@ -348,10 +350,14 @@
     }
     .manhoursCaseDetailRow td.treeHead {
       background: #e4d7bf;
+      border-left: 1px solid var(--border);
     }
     .manhoursCaseDetailRow td.daycell {
       background: #e4d7bf !important;
       height: var(--cal-head-row-h);
+    }
+    .manhoursDomainDetailRow td.treeHead {
+      border-left: 1px solid var(--border);
     }
     .manhoursDomainDetailRow td.daycell {
       height: var(--cal-head-row-h);
