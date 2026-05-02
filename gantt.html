@@ -1410,6 +1410,26 @@
   function renderTree() {
     leftPane.innerHTML = "";
     const d = state.data;
+    const createDefaultPlan = () => {
+      const pl = {
+        id: uid(),
+        name: "新しい plan",
+        plannedStart: toDateString(new Date()),
+        plannedEnd: "",
+        actualStart: "",
+        actualEnd: "",
+        utilization: 1,
+        caseId: d.cases[0] && d.cases[0].id || null,
+        ownerId: d.members[0] && d.members[0].id || null,
+        color: null,
+        statusId: d.statuses[0] && d.statuses[0].id || null,
+        phaseHours: {},
+        cells: {},
+      };
+      d.phases.forEach((ph) => { pl.phaseHours[ph] = { planned: 0, actual: 0 }; });
+      return pl;
+    };
+
     const addBtn = (label, fn) => {
       const b = document.createElement("button");
       b.type = "button";
@@ -1418,21 +1438,7 @@
       return b;
     };
 
-    // header要素 / domain追加ボタン
-    const head = document.createElement("div");
-    head.className = "inputPaneHeader";
-    head.appendChild(addBtn("+ domain", () => {
-      d.domains.push({ id: uid(), name: "新しい domain", cells: {}, projects: [] });
-      markDirty(state, true);
-      renderAll();
-    }));
-    leftPane.appendChild(head);
-    // header要素の高さを取得
-    const inpPaneHeaderH = head.getBoundingClientRect().height;
-
-    // domain / project / version / taskのツリー構造
-    d.domains.forEach((dom) => {
-      // domain要素
+    const makeDomainNode = (dom) => {
       const domEl = document.createElement("div");
       domEl.className = "inputPaneDomain";
       // domain header要素
@@ -1445,360 +1451,407 @@
       ds.addEventListener("click", () => startEditLabel(ds, (v) => { dom.name = v || dom.name; markDirty(state, true); }));
       dh.appendChild(ds);
       dh.appendChild(addBtn("+ project", () => {
-        dom.projects.push({ id: uid(), name: "新しい project", cells: {}, versions: [] });
+        const np = { id: uid(), name: "新しい project", cells: {}, versions: [] };
+        dom.projects.push(np);
         markDirty(state, true);
-        renderAll();
+        renderGantt();
+        // dom要素追加
+        const pe = makeProjectNode(np);
+        domEl.appendChild(pe);
       }));
       domEl.appendChild(dh);
+      return domEl;
+    };
+
+    const makeProjectNode = (pr) => {
+      const pe = document.createElement("div");
+      pe.className = "inputPaneProject";
+      // project header要素
+      const ph = document.createElement("div");
+      ph.className = "inputPaneProjectHeader";
+      const ps = document.createElement("span");
+      ps.className = "nameCell";
+      ps.textContent = pr.name;
+      ps.addEventListener("click", () => startEditLabel(ps, (v) => { pr.name = v || pr.name; markDirty(state, true); }));
+      ph.appendChild(ps);
+      ph.appendChild(addBtn("+ version", () => {
+        const nv = { id: uid(), name: "新しい version", cells: {}, tasks: [] };
+        pr.versions.push(nv);
+        markDirty(state, true);
+        renderGantt();
+
+        const ve = makeVersionNode(nv);
+        pe.appendChild(ve);
+      }));
+      pe.appendChild(ph);
+      return pe;
+    }
+
+    const makeVersionNode = (vr) => {
+      const ve = document.createElement("div");
+      ve.className = "inputPaneVersion";
+      // version header要素
+      const vh = document.createElement("div");
+      vh.className = "inputPaneVersionHeader";
+      const vs = document.createElement("span");
+      vs.className = "nameCell";
+      vs.textContent = vr.name;
+      vs.addEventListener("click", () => startEditLabel(vs, (v) => { vr.name = v || vr.name; markDirty(state, true); }));
+      vh.appendChild(vs);
+      vh.appendChild(addBtn("+ task", () => {
+        // 変数要素追加
+        const nt = { id: uid(), name: "新しい task", plans: [] };
+        const pl0 = createDefaultPlan();
+        nt.plans.push(pl0);
+        vr.tasks.push(nt);
+        markDirty(state, true);
+        renderGantt();
+        // dom要素追加
+        const te = makeTaskNode(nt);
+        te.appendChild(makePlanNode(pl0));
+        ve.appendChild(te);
+      }));
+      ve.appendChild(vh);
+      return ve;
+    }
+
+    const makeTaskNode = (tk) => {
+      const te = document.createElement("div");
+      te.className = "inputPaneTask";
+      const th = document.createElement("div");
+      th.className = "inputPaneTaskHeader";
+      const ts = document.createElement("span");
+      ts.className = "nameCell";
+      ts.textContent = tk.name;
+      ts.addEventListener("click", () => startEditLabel(ts, (v) => { tk.name = v || tk.name; markDirty(state, true); }));
+      th.appendChild(ts);
+      th.appendChild(addBtn("+ plan", () => {
+        const pl = createDefaultPlan();
+        tk.plans.push(pl);
+        markDirty(state, true);
+        renderGantt();
+        te.appendChild(makePlanNode(pl));
+      }));
+      te.appendChild(th);
+      return te;
+    }
+
+    const makePlanNode = (pl) => {
+      const box = document.createElement("div");
+      box.dataset.planId = pl.id;
+      box.className = "inputPanePlan";
+      box.style.background = state.selectedPlanId === pl.id ? "#fffbe6" : "#fff";
+      const title = document.createElement("div");
+      title.style.display = "flex";
+      title.style.gap = "6px";
+      const ns = document.createElement("span");
+      ns.className = "nameCell";
+      ns.textContent = pl.name;
+      ns.addEventListener("click", () => startEditLabel(ns, (v) => { pl.name = v || pl.name; markDirty(state, true); }));
+      title.appendChild(ns);
+      box.appendChild(title);
+
+      const fields = document.createElement("div");
+      fields.className = "planFields";
+      const selectPlanInLeftPane = () => {
+        if (state.selectedPlanId !== pl.id) {
+          state.selectedPlanId = pl.id;
+          leftPane.querySelectorAll("[data-plan-id]").forEach((el) => {
+            el.style.background = el.dataset.planId === state.selectedPlanId ? "#fffbe6" : "#fff";
+          });
+          // 左ペイン再描画を避け、編集中のフォーカスを維持する
+          renderGantt();
+        }
+        scrollGanttPlanIntoView(state.selectedPlanId);
+      };
+      box.addEventListener("focusin", selectPlanInLeftPane);
+      box.addEventListener("click", selectPlanInLeftPane);
+
+      // 開始日と終了日をまとめたテーブル
+      {
+        const dateTable = document.createElement("table");
+        dateTable.className = "dateTable";
+        // ヘッダー行
+        const headerRow = document.createElement("tr");
+        const headerLabel = document.createElement("th");
+        headerLabel.className = "dateTableHeader";
+        headerRow.appendChild(headerLabel);
+        const startHeader = document.createElement("th");
+        startHeader.className = "dateTableHeader";
+        startHeader.textContent = "開始日";
+        headerRow.appendChild(startHeader);
+        const endHeader = document.createElement("th");
+        endHeader.className = "dateTableHeader";
+        endHeader.textContent = "終了日";
+        headerRow.appendChild(endHeader);
+        dateTable.appendChild(headerRow);
+        // 予定行
+        const plannedRow = document.createElement("tr");
+        const plannedLabel = document.createElement("td");
+        plannedLabel.className = "dateTableHeader";
+        plannedLabel.textContent = "予定";
+        plannedRow.appendChild(plannedLabel);
+        const plannedStartCell = document.createElement("td");
+        const inpStart = document.createElement("input");
+        inpStart.type = "date";
+        inpStart.dataset.field = "plannedStart";
+        inpStart.value = pl.plannedStart || "";
+        inpStart.addEventListener("change", () => {
+          pl.plannedStart = inpStart.value;
+          pl.plannedEnd = computePlannedEnd(pl, state);
+          markDirty(state, true);
+          renderAll();
+        });
+        plannedStartCell.appendChild(inpStart);
+        plannedRow.appendChild(plannedStartCell);
+        const plannedEndCell = document.createElement("td");
+        const inpEnd = document.createElement("input");
+        inpEnd.type = "text";
+        inpEnd.readOnly = true;
+        inpEnd.dataset.field = "plannedEnd";
+        inpEnd.value = pl.plannedEnd || "";
+        plannedEndCell.appendChild(inpEnd);
+        plannedRow.appendChild(plannedEndCell);
+        dateTable.appendChild(plannedRow);
+        // 実績行
+        const actualRow = document.createElement("tr");
+        const actualLabel = document.createElement("td");
+        actualLabel.textContent = "実績";
+        actualLabel.className = "dateTableHeader";
+        actualRow.appendChild(actualLabel);
+        const actualStartCell = document.createElement("td");
+        const aS = document.createElement("input");
+        aS.type = "date";
+        aS.value = pl.actualStart || "";
+        aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
+        actualStartCell.appendChild(aS);
+        actualRow.appendChild(actualStartCell);
+        const actualEndCell = document.createElement("td");
+        const aE = document.createElement("input");
+        aE.type = "date";
+        aE.value = pl.actualEnd || "";
+        aE.addEventListener("change", () => { pl.actualEnd = aE.value; markDirty(state, true); renderAll(); });
+        actualEndCell.appendChild(aE);
+        actualRow.appendChild(actualEndCell);
+        dateTable.appendChild(actualRow);
+        fields.appendChild(dateTable);
+      }
+
+      function addMiniRow() {
+        const row = document.createElement("div");
+        row.className = "planRowH";
+        fields.appendChild(row);
+        return row;
+      }
+      function addLabeled(row, label, el) {
+        const lab = document.createElement("label");
+        lab.innerHTML = "<span>" + label + "</span>";
+        lab.appendChild(el);
+        row.appendChild(lab);
+      }
+
+
+      // phaseごとの工数入力（allは集計用で編集不可）
+      // tableで構築。
+      const rowHour = addMiniRow();
+      // 工数入力用のテーブルを作成
+      const hourTable = document.createElement("table");
+      hourTable.className = "hourTable";
+      // header行の作成
+      const headerRow = document.createElement("tr");
+      headerRow.className = "hourTableHeaderRow";
+      const headerLabel = document.createElement("th");
+      headerLabel.textContent = "工数(hr)";
+      headerLabel.className = "hourTableHeaderLabel";
+      headerRow.appendChild(headerLabel);
+      // 予定工数行の作成
+      const plannedRow = document.createElement("tr");
+      plannedRow.className = "hourTableRow";
+      const plannedLabel = document.createElement("td");
+      plannedLabel.textContent = "予定";
+      plannedLabel.className = "hourTableLabel";
+      plannedRow.appendChild(plannedLabel);
+      // 実績工数行の作成
+      const actualRow = document.createElement("tr");
+      actualRow.className = "hourTableRow";
+      const actualLabel = document.createElement("td");
+      actualLabel.textContent = "実績";
+      actualLabel.className = "hourTableLabel";
+      actualRow.appendChild(actualLabel);
+      // phase列の追加
+      d.phases.forEach((ph) => {
+        // headerにphase名を追加
+        const thPh = document.createElement("th");
+        thPh.textContent = ph;
+        thPh.className = "hourTableHeaderPhase";
+        headerRow.appendChild(thPh);
+        // 予定工数行に入力欄を追加
+        const tdP = document.createElement("td");
+        const inpP = document.createElement("input");
+        inpP.className = "hourInput";
+        inpP.type = "text";
+        inpP.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].planned) || 0);
+        if (ph === "all") {
+          inpP.readOnly = true;
+          inpP.dataset.field = "phasePlannedAll";
+          inpP.title = "ガントのセル入力から集計（チャート反映）";
+        } else {
+          inpP.addEventListener("change", () => {
+            syncPhaseTotalsFromField(state, pl, ph, "planned", inpP.value);
+            pl.plannedEnd = computePlannedEnd(pl, state);
+            markDirty(state, true);
+            renderAll();
+          });
+        }
+        tdP.appendChild(inpP);
+        plannedRow.appendChild(tdP);
+        // 実績工数行に入力欄を追加
+        const tdA = document.createElement("td");
+        const inpA = document.createElement("input");
+        inpA.className = "hourInput";
+        inpA.type = "text";
+        inpA.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].actual) || 0);
+        inpA.addEventListener("change", () => {
+          syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
+          markDirty(state, true);
+          renderAll();
+        });
+        tdA.appendChild(inpA);
+        actualRow.appendChild(tdA);
+      });
+      // tableに行を追加
+      hourTable.appendChild(headerRow);
+      hourTable.appendChild(plannedRow);
+      hourTable.appendChild(actualRow);
+      rowHour.appendChild(hourTable);
+
+
+      const rowSelect = addMiniRow();
+      const inpUtil = document.createElement("input");
+      inpUtil.type = "number";
+      inpUtil.step = "0.1";
+      inpUtil.min = "0.1";
+      inpUtil.style.maxWidth = "4.5em";
+      inpUtil.value = pl.utilization;
+      inpUtil.addEventListener("change", () => {
+        pl.utilization = Number(inpUtil.value) || 1;
+        pl.plannedEnd = computePlannedEnd(pl, state);
+        markDirty(state, true);
+        renderAll();
+      });
+      addLabeled(rowSelect, "稼働率", inpUtil);
+      // case選択
+      const selCase = document.createElement("select");
+      d.cases.forEach((c) => {
+        const o = document.createElement("option");
+        o.value = c.id;
+        o.textContent = c.name;
+        selCase.appendChild(o);
+      });
+      selCase.value = pl.caseId || "";
+      selCase.addEventListener("change", () => {
+        const next = selCase.value || null;
+        const prev = pl.caseId;
+        pl.caseId = next;
+        if (!validateCaseOwner(tk, pl)) {
+          alert("同一 task 内で case+owner の組み合わせはユニークである必要があります。");
+          pl.caseId = prev;
+          selCase.value = prev || "";
+        } else {
+          markDirty(state, true);
+          renderAll();
+        }
+      });
+      addLabeled(rowSelect, "case", selCase);
+      // owner選択
+      const selOwn = document.createElement("select");
+      d.members.forEach((m) => {
+        const o = document.createElement("option");
+        o.value = m.id;
+        o.textContent = m.name;
+        selOwn.appendChild(o);
+      });
+      selOwn.value = pl.ownerId || "";
+      selOwn.addEventListener("change", () => {
+        const next = selOwn.value || null;
+        const prev = pl.ownerId;
+        pl.ownerId = next;
+        if (!validateCaseOwner(tk, pl)) {
+          alert("同一 task 内で case+owner の組み合わせはユニークである必要があります。");
+          pl.ownerId = prev;
+          selOwn.value = prev || "";
+        } else {
+          markDirty(state, true);
+          renderAll();
+        }
+      });
+      addLabeled(rowSelect, "owner", selOwn);
+      const colPick = document.createElement("input");
+      colPick.type = "color";
+      colPick.style.maxWidth = "3em";
+      colPick.value = (planBarColor(pl, state) || "#6b9bd2").replace(/[^#0-9a-fA-F]/g, "").slice(0, 7);
+      colPick.addEventListener("input", () => {
+        applyColorToCaseOwner(tk, pl, colPick.value);
+        markDirty(state, true);
+        renderAll();
+      });
+      addLabeled(rowSelect, "色", colPick);
+      const selSt = document.createElement("select");
+      d.statuses.forEach((s) => {
+        const o = document.createElement("option");
+        o.value = s.id;
+        o.textContent = s.name || s.id;
+        selSt.appendChild(o);
+      });
+      selSt.value = pl.statusId || "";
+      selSt.addEventListener("change", () => {
+        pl.statusId = selSt.value || null;
+        markDirty(state, true);
+        renderAll();
+      });
+      addLabeled(rowSelect, "status", selSt);
+
+      box.appendChild(fields);
+      return box;
+    }
+
+
+    // header要素 / domain追加ボタン
+    const head = document.createElement("div");
+    head.className = "inputPaneHeader";
+    head.appendChild(addBtn("+ domain", () => {
+      const nd = { id: uid(), name: "新しい domain", cells: {}, projects: [] };
+      d.domains.push(nd);
+      markDirty(state, true);
+      renderGantt();
+      // dom要素作成
+      const domEl = makeDomainNode(nd);
+      leftPane.appendChild(domEl);
+    }));
+    leftPane.appendChild(head);
+    // header要素の高さを取得
+    const inpPaneHeaderH = head.getBoundingClientRect().height;
+
+    // domain / project / version / taskのツリー構造
+    d.domains.forEach((dom) => {
+      // domain要素
+      const domEl = makeDomainNode(dom);
 
       (dom.projects || []).forEach((pr) => {
         // project要素
-        const pe = document.createElement("div");
-        pe.className = "inputPaneProject";
-        // project header要素
-        const ph = document.createElement("div");
-        ph.className = "inputPaneProjectHeader";
-        const ps = document.createElement("span");
-        ps.className = "nameCell";
-        ps.textContent = pr.name;
-        ps.addEventListener("click", () => startEditLabel(ps, (v) => { pr.name = v || pr.name; markDirty(state, true); }));
-        ph.appendChild(ps);
-        ph.appendChild(addBtn("+ version", () => {
-          pr.versions.push({ id: uid(), name: "新しい version", cells: {}, tasks: [] });
-          markDirty(state, true);
-          renderAll();
-        }));
-        pe.appendChild(ph);
+        const pe = makeProjectNode(pr);
 
         (pr.versions || []).forEach((vr) => {
           // version要素
-          const ve = document.createElement("div");
-          ve.className = "inputPaneVersion";
-          // version header要素
-          const vh = document.createElement("div");
-          vh.className = "inputPaneVersionHeader";
-          const vs = document.createElement("span");
-          vs.className = "nameCell";
-          vs.textContent = vr.name;
-          vs.addEventListener("click", () => startEditLabel(vs, (v) => { vr.name = v || vr.name; markDirty(state, true); }));
-          vh.appendChild(vs);
-          vh.appendChild(addBtn("+ task", () => {
-            vr.tasks.push({ id: uid(), name: "新しい task", plans: [] });
-            markDirty(state, true);
-            renderAll();
-          }));
-          ve.appendChild(vh);
+          const ve = makeVersionNode(vr);
 
           (vr.tasks || []).forEach((tk) => {
             // task要素
-            const te = document.createElement("div");
-            te.className = "inputPaneTask";
-            const th = document.createElement("div");
-            th.className = "inputPaneTaskHeader";
-            const ts = document.createElement("span");
-            ts.className = "nameCell";
-            ts.textContent = tk.name;
-            ts.addEventListener("click", () => startEditLabel(ts, (v) => { tk.name = v || tk.name; markDirty(state, true); }));
-            th.appendChild(ts);
-            th.appendChild(addBtn("+ plan", () => {
-              const pl = {
-                id: uid(),
-                name: "新しい plan",
-                plannedStart: toDateString(new Date()),
-                plannedEnd: "",
-                actualStart: "",
-                actualEnd: "",
-                utilization: 1,
-                caseId: d.cases[0] && d.cases[0].id || null,
-                ownerId: d.members[0] && d.members[0].id || null,
-                color: null,
-                statusId: d.statuses[0] && d.statuses[0].id || null,
-                phaseHours: {},
-                cells: {},
-              };
-              d.phases.forEach((ph) => { pl.phaseHours[ph] = { planned: 0, actual: 0 }; });
-              tk.plans.push(pl);
-              markDirty(state, true);
-              renderAll();
-            }));
-            te.appendChild(th);
+            const te = makeTaskNode(tk);
 
             (tk.plans || []).forEach((pl) => {
-              const box = document.createElement("div");
-              box.dataset.planId = pl.id;
-              box.className = "inputPanePlan";
-              box.style.background = state.selectedPlanId === pl.id ? "#fffbe6" : "#fff";
-              const title = document.createElement("div");
-              title.style.display = "flex";
-              title.style.gap = "6px";
-              const ns = document.createElement("span");
-              ns.className = "nameCell";
-              ns.textContent = pl.name;
-              ns.addEventListener("click", () => startEditLabel(ns, (v) => { pl.name = v || pl.name; markDirty(state, true); }));
-              title.appendChild(ns);
-              box.appendChild(title);
-
-              const fields = document.createElement("div");
-              fields.className = "planFields";
-              const selectPlanInLeftPane = () => {
-                if (state.selectedPlanId !== pl.id) {
-                  state.selectedPlanId = pl.id;
-                  leftPane.querySelectorAll("[data-plan-id]").forEach((el) => {
-                    el.style.background = el.dataset.planId === state.selectedPlanId ? "#fffbe6" : "#fff";
-                  });
-                  // 左ペイン再描画を避け、編集中のフォーカスを維持する
-                  renderGantt();
-                }
-                scrollGanttPlanIntoView(state.selectedPlanId);
-              };
-              box.addEventListener("focusin", selectPlanInLeftPane);
-              box.addEventListener("click", selectPlanInLeftPane);
-
-              // 開始日と終了日をまとめたテーブル
-              {
-                const dateTable = document.createElement("table");
-                dateTable.className = "dateTable";
-                // ヘッダー行
-                const headerRow = document.createElement("tr");
-                const headerLabel = document.createElement("th");
-                headerLabel.className = "dateTableHeader";
-                headerRow.appendChild(headerLabel);
-                const startHeader = document.createElement("th");
-                startHeader.className = "dateTableHeader";
-                startHeader.textContent = "開始日";
-                headerRow.appendChild(startHeader);
-                const endHeader = document.createElement("th");
-                endHeader.className = "dateTableHeader";
-                endHeader.textContent = "終了日";
-                headerRow.appendChild(endHeader);
-                dateTable.appendChild(headerRow);
-                // 予定行
-                const plannedRow = document.createElement("tr");
-                const plannedLabel = document.createElement("td");
-                plannedLabel.className = "dateTableHeader";
-                plannedLabel.textContent = "予定";
-                plannedRow.appendChild(plannedLabel);
-                const plannedStartCell = document.createElement("td");
-                const inpStart = document.createElement("input");
-                inpStart.type = "date";
-                inpStart.dataset.field = "plannedStart";
-                inpStart.value = pl.plannedStart || "";
-                inpStart.addEventListener("change", () => {
-                  pl.plannedStart = inpStart.value;
-                  pl.plannedEnd = computePlannedEnd(pl, state);
-                  markDirty(state, true);
-                  renderAll();
-                });
-                plannedStartCell.appendChild(inpStart);
-                plannedRow.appendChild(plannedStartCell);
-                const plannedEndCell = document.createElement("td");
-                const inpEnd = document.createElement("input");
-                inpEnd.type = "text";
-                inpEnd.readOnly = true;
-                inpEnd.dataset.field = "plannedEnd";
-                inpEnd.value = pl.plannedEnd || "";
-                plannedEndCell.appendChild(inpEnd);
-                plannedRow.appendChild(plannedEndCell);
-                dateTable.appendChild(plannedRow);
-                // 実績行
-                const actualRow = document.createElement("tr");
-                const actualLabel = document.createElement("td");
-                actualLabel.textContent = "実績";
-                actualLabel.className = "dateTableHeader";
-                actualRow.appendChild(actualLabel);
-                const actualStartCell = document.createElement("td");
-                const aS = document.createElement("input");
-                aS.type = "date";
-                aS.value = pl.actualStart || "";
-                aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
-                actualStartCell.appendChild(aS);
-                actualRow.appendChild(actualStartCell);
-                const actualEndCell = document.createElement("td");
-                const aE = document.createElement("input");
-                aE.type = "date";
-                aE.value = pl.actualEnd || "";
-                aE.addEventListener("change", () => { pl.actualEnd = aE.value; markDirty(state, true); renderAll(); });
-                actualEndCell.appendChild(aE);
-                actualRow.appendChild(actualEndCell);
-                dateTable.appendChild(actualRow);
-                fields.appendChild(dateTable);
-              }
-
-              function addMiniRow() {
-                const row = document.createElement("div");
-                row.className = "planRowH";
-                fields.appendChild(row);
-                return row;
-              }
-              function addLabeled(row, label, el) {
-                const lab = document.createElement("label");
-                lab.innerHTML = "<span>" + label + "</span>";
-                lab.appendChild(el);
-                row.appendChild(lab);
-              }
-
-
-              // phaseごとの工数入力（allは集計用で編集不可）
-              // tableで構築。
-              const rowHour = addMiniRow();
-              // 工数入力用のテーブルを作成
-              const hourTable = document.createElement("table");
-              hourTable.className = "hourTable";
-              // header行の作成
-              const headerRow = document.createElement("tr");
-              headerRow.className = "hourTableHeaderRow";
-              const headerLabel = document.createElement("th");
-              headerLabel.textContent = "工数(hr)";
-              headerLabel.className = "hourTableHeaderLabel";
-              headerRow.appendChild(headerLabel);
-              // 予定工数行の作成
-              const plannedRow = document.createElement("tr");
-              plannedRow.className = "hourTableRow";
-              const plannedLabel = document.createElement("td");
-              plannedLabel.textContent = "予定";
-              plannedLabel.className = "hourTableLabel";
-              plannedRow.appendChild(plannedLabel);
-              // 実績工数行の作成
-              const actualRow = document.createElement("tr");
-              actualRow.className = "hourTableRow";
-              const actualLabel = document.createElement("td");
-              actualLabel.textContent = "実績";
-              actualLabel.className = "hourTableLabel";
-              actualRow.appendChild(actualLabel);
-              // phase列の追加
-              d.phases.forEach((ph) => {
-                // headerにphase名を追加
-                const thPh = document.createElement("th");
-                thPh.textContent = ph;
-                thPh.className = "hourTableHeaderPhase";
-                headerRow.appendChild(thPh);
-                // 予定工数行に入力欄を追加
-                const tdP = document.createElement("td");
-                const inpP = document.createElement("input");
-                inpP.className = "hourInput";
-                inpP.type = "text";
-                inpP.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].planned) || 0);
-                if (ph === "all") {
-                  inpP.readOnly = true;
-                  inpP.dataset.field = "phasePlannedAll";
-                  inpP.title = "ガントのセル入力から集計（チャート反映）";
-                } else {
-                  inpP.addEventListener("change", () => {
-                    syncPhaseTotalsFromField(state, pl, ph, "planned", inpP.value);
-                    pl.plannedEnd = computePlannedEnd(pl, state);
-                    markDirty(state, true);
-                    renderAll();
-                  });
-                }
-                tdP.appendChild(inpP);
-                plannedRow.appendChild(tdP);
-                // 実績工数行に入力欄を追加
-                const tdA = document.createElement("td");
-                const inpA = document.createElement("input");
-                inpA.className = "hourInput";
-                inpA.type = "text";
-                inpA.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].actual) || 0);
-                inpA.addEventListener("change", () => {
-                  syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
-                  markDirty(state, true);
-                  renderAll();
-                });
-                tdA.appendChild(inpA);
-                actualRow.appendChild(tdA);
-              });
-              // tableに行を追加
-              hourTable.appendChild(headerRow);
-              hourTable.appendChild(plannedRow);
-              hourTable.appendChild(actualRow);
-              rowHour.appendChild(hourTable);
-
-
-              const rowSelect = addMiniRow();
-              const inpUtil = document.createElement("input");
-              inpUtil.type = "number";
-              inpUtil.step = "0.1";
-              inpUtil.min = "0.1";
-              inpUtil.style.maxWidth = "4.5em";
-              inpUtil.value = pl.utilization;
-              inpUtil.addEventListener("change", () => {
-                pl.utilization = Number(inpUtil.value) || 1;
-                pl.plannedEnd = computePlannedEnd(pl, state);
-                markDirty(state, true);
-                renderAll();
-              });
-              addLabeled(rowSelect, "稼働率", inpUtil);
-              // case選択
-              const selCase = document.createElement("select");
-              d.cases.forEach((c) => {
-                const o = document.createElement("option");
-                o.value = c.id;
-                o.textContent = c.name;
-                selCase.appendChild(o);
-              });
-              selCase.value = pl.caseId || "";
-              selCase.addEventListener("change", () => {
-                const next = selCase.value || null;
-                const prev = pl.caseId;
-                pl.caseId = next;
-                if (!validateCaseOwner(tk, pl)) {
-                  alert("同一 task 内で case+owner の組み合わせはユニークである必要があります。");
-                  pl.caseId = prev;
-                  selCase.value = prev || "";
-                } else {
-                  markDirty(state, true);
-                  renderAll();
-                }
-              });
-              addLabeled(rowSelect, "case", selCase);
-              // owner選択
-              const selOwn = document.createElement("select");
-              d.members.forEach((m) => {
-                const o = document.createElement("option");
-                o.value = m.id;
-                o.textContent = m.name;
-                selOwn.appendChild(o);
-              });
-              selOwn.value = pl.ownerId || "";
-              selOwn.addEventListener("change", () => {
-                const next = selOwn.value || null;
-                const prev = pl.ownerId;
-                pl.ownerId = next;
-                if (!validateCaseOwner(tk, pl)) {
-                  alert("同一 task 内で case+owner の組み合わせはユニークである必要があります。");
-                  pl.ownerId = prev;
-                  selOwn.value = prev || "";
-                } else {
-                  markDirty(state, true);
-                  renderAll();
-                }
-              });
-              addLabeled(rowSelect, "owner", selOwn);
-              const colPick = document.createElement("input");
-              colPick.type = "color";
-              colPick.style.maxWidth = "3em";
-              colPick.value = (planBarColor(pl, state) || "#6b9bd2").replace(/[^#0-9a-fA-F]/g, "").slice(0, 7);
-              colPick.addEventListener("input", () => {
-                applyColorToCaseOwner(tk, pl, colPick.value);
-                markDirty(state, true);
-                renderAll();
-              });
-              addLabeled(rowSelect, "色", colPick);
-              const selSt = document.createElement("select");
-              d.statuses.forEach((s) => {
-                const o = document.createElement("option");
-                o.value = s.id;
-                o.textContent = s.name || s.id;
-                selSt.appendChild(o);
-              });
-              selSt.value = pl.statusId || "";
-              selSt.addEventListener("change", () => {
-                pl.statusId = selSt.value || null;
-                markDirty(state, true);
-                renderAll();
-              });
-              addLabeled(rowSelect, "status", selSt);
-
-              box.appendChild(fields);
+              // plan要素
+              const box = makePlanNode(pl);
               te.appendChild(box);
             });
             ve.appendChild(te);
