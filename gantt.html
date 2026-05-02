@@ -856,6 +856,23 @@
     return out;
   }
 
+  function shouldRefreshGanttNearRangeEdge(plan, dates, cellsOverride) {
+    if (!plan || !Array.isArray(dates) || dates.length === 0) return false;
+    const minDate = dates[0];
+    const maxDate = dates[dates.length - 1];
+    const cells = cellsOverride || plan.cells || {};
+    const keys = Object.keys(cells);
+    for (let i = 0; i < keys.length; i++) {
+      const ds = keys[i];
+      const c = cells[ds];
+      if (!c || typeof c !== "object" || c.util == null) continue;
+      const dMin = Math.abs(daysBetween(ds, minDate));
+      const dMax = Math.abs(daysBetween(ds, maxDate));
+      if (dMin <= 7 || dMax <= 7) return true;
+    }
+    return false;
+  }
+
   function markDirty(state, v) {
     state.dirty = v;
   }
@@ -2396,6 +2413,7 @@
       recomputeAllPhaseFromCells(plan);
       plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
+      if (shouldRefreshGanttNearRangeEdge(plan, getDateRange(state), plan.cells)) renderGantt();
     };
     td.addEventListener("blur", onChange);
     // Enterキーで確定、Escキーでキャンセル
@@ -2485,6 +2503,7 @@
             recomputeAllPhaseFromCells(pln);
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
+            if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
         } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
           // セル移動なし:クリックのみ:稼働率処理
@@ -2499,6 +2518,7 @@
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
+          if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
         }
       }
       state.drag = null;
