@@ -2685,6 +2685,7 @@
             markDirty(state, true);
             syncLeftPanePlanSummaryDom(pln.id);
             refreshManhoursRowsDom();
+            if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
         } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
           // セル移動なし:クリックのみ:稼働率処理
@@ -2701,6 +2702,7 @@
           markDirty(state, true);
           syncLeftPanePlanSummaryDom(pln.id);
           refreshManhoursRowsDom();
+          if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
         }
       }
       state.drag = null;
