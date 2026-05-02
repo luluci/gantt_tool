@@ -191,6 +191,9 @@
       border: 1px solid var(--border);
       padding: 4px !important;
     }
+    .inputPanePlan.selected {
+      background: var(--selected);
+    }
 
     .dateTable {
       width: 100%;
@@ -953,6 +956,28 @@
     target.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
+  function applySelectedPlanDom(planId) {
+    const pid = String(planId || "");
+    ganttVScroll.querySelectorAll("tr.planRow.selected").forEach((row) => {
+      row.classList.remove("selected");
+    });
+    leftPane.querySelectorAll(".inputPanePlan.selected").forEach((row) => {
+      row.classList.remove("selected");
+    });
+    if (pid) {
+      const row = ganttVScroll.querySelector('tr.planRow[data-plan-id="' + pid.replace(/"/g, '\\"') + '"]');
+      if (row) row.classList.add("selected");
+
+      const inp = leftPane.querySelector('.inputPanePlan[data-plan-id="' + pid.replace(/"/g, '\\"') + '"]');
+      if (inp) {
+        inp.classList.add("selected");
+      }
+    }
+    // leftPane.querySelectorAll("[data-plan-id]").forEach((el) => {
+    //   el.style.background = el.dataset.planId === pid ? "#fffbe6" : "#fff";
+    // });
+  }
+
   function ensureCommentPopup() {
     if (commentPopup) return;
     const pop = document.createElement("div");
@@ -1539,8 +1564,7 @@
     const makePlanNode = (pl) => {
       const box = document.createElement("div");
       box.dataset.planId = pl.id;
-      box.className = "inputPanePlan";
-      box.style.background = state.selectedPlanId === pl.id ? "#fffbe6" : "#fff";
+      box.className = "inputPanePlan" + (state.selectedPlanId === pl.id ? " selected" : "");
       const title = document.createElement("div");
       title.style.display = "flex";
       title.style.gap = "6px";
@@ -1556,11 +1580,8 @@
       const selectPlanInLeftPane = () => {
         if (state.selectedPlanId !== pl.id) {
           state.selectedPlanId = pl.id;
-          leftPane.querySelectorAll("[data-plan-id]").forEach((el) => {
-            el.style.background = el.dataset.planId === state.selectedPlanId ? "#fffbe6" : "#fff";
-          });
           // 左ペイン再描画を避け、編集中のフォーカスを維持する
-          renderGantt();
+          applySelectedPlanDom(state.selectedPlanId);
         }
         scrollGanttPlanIntoView(state.selectedPlanId);
       };
@@ -2324,7 +2345,7 @@
         tPlan.textContent = pl.name;
         tPlan.addEventListener("click", () => {
           state.selectedPlanId = pl.id;
-          renderAll();
+          applySelectedPlanDom(state.selectedPlanId);
           scrollLeftPlanIntoView(state.selectedPlanId);
         });
         tr.appendChild(tPlan);
