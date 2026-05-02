@@ -799,7 +799,7 @@
     if (!td) return;
     const fill = td.querySelector(".fill");
     if (!fill) return;
-    const on = !!(dateCell && typeof dateCell === "object");
+    const on = !!(dateCell && typeof dateCell === "object" && dateCell.util && dateCell.util > 1e-5);
     const holType = holidayTypeForDate(ds, plan, state);
     if (on) {
       td.style.background = planBarColor(plan, state);
@@ -2536,33 +2536,37 @@
 
     // クリックされたセル要素を検索
     const td = ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"]');
-    const curText = td.textContent;
-    td.textContent = String(curU); 
-    td.contentEditable = "true";
-    td.focus();
+    const spn = td.querySelector('span');
+    const curText = spn.textContent;
+    spn.textContent = String(curU);
+    spn.contentEditable = "true";
+    spn.focus();
     // テキストを全選択
     document.execCommand("selectAll", false, null);
     const onChange = () => {
-      // 空白でキャンセル
-      if (td.textContent.trim() === "") {
-        td.textContent = curText;
-        td.contentEditable = "false";
-        return;
-      }
+      const new_txt = spn.textContent.trim();
       // 入力値を数値として解析
-      const val = Number(td.textContent);
+      let val = Number(new_txt);
       if (isNaN(val)) {
         alert("有効な数値を入力してください（0で削除）");
-        td.textContent = String(curU);
-        td.focus();
+        spn.textContent = String(curU);
+        spn.focus();
         return;
       }
+      //
+      spn.removeEventListener("blur", onChange);
+      spn.removeEventListener("keydown", onKey);
+      // 空白で0扱い
+      if (new_txt === "") {
+        val = 0;
+      }
+      //
       if (val < 1e-5) {
         delete cell.util;
       } else {
         cell.util = val;
       }
-      td.contentEditable = "false";
+      spn.contentEditable = "false";
       updatePlanCellDomByData(plan, ds, plan.cells[ds] || cell, null);
       recomputeAllPhaseFromCells(plan);
       plan.plannedEnd = computePlannedEnd(plan, state);
@@ -2570,16 +2574,17 @@
       syncLeftPanePlanSummaryDom(plan.id);
       refreshManhoursRowsDom();
     };
-    td.addEventListener("blur", onChange);
+    spn.addEventListener("blur", onChange);
     // Enterキーで確定、Escキーでキャンセル
-    td.addEventListener("keydown", (e) => {
+    const onKey = (e) => {
       if (e.key === "Enter") {
         onChange();
       } else if (e.key === "Escape") {
-        td.textContent = curText;
-        td.contentEditable = "false";
+        spn.textContent = curText;
+        spn.contentEditable = "false";
       }
-    });
+    }
+    spn.addEventListener("keydown", onKey);
 
     markDirty(state, true);
   }
