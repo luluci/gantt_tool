@@ -84,6 +84,10 @@
       border-color: 3a68ff;
       color: #fff;
 
+      display: flex;
+      align-items: center;
+      gap: 6px;
+
       position: sticky;
       top: 0;
       z-index: 10;
@@ -1542,7 +1546,7 @@
         markDirty(state, true);
         renderGantt();
         // dom要素追加
-        const pe = makeProjectNode(np);
+        const pe = makeProjectNode(dom, np);
         domEl.appendChild(pe);
         calcTreeSticky();
       }));
@@ -1560,7 +1564,7 @@
       return domEl;
     };
 
-    const makeProjectNode = (pr) => {
+    const makeProjectNode = (dom, pr) => {
       const pe = document.createElement("div");
       pe.className = "inputPaneProject";
       // project header要素
@@ -1577,15 +1581,25 @@
         markDirty(state, true);
         renderGantt();
 
-        const ve = makeVersionNode(nv);
+        const ve = makeVersionNode(pr, nv);
         pe.appendChild(ve);
+        calcTreeSticky();
+      }));
+      ph.appendChild(addDeleteBtn(() => {
+        if (!confirm(`"${pr.name}" を削除してもよろしいですか？`)) return;
+        // データから削除, ガントチャート更新
+        dom.projects = dom.projects.filter((p) => p !== pr);
+        markDirty(state, true);
+        renderGantt();
+        // DOMから削除, 入力ペイン更新
+        pe.remove();
         calcTreeSticky();
       }));
       pe.appendChild(ph);
       return pe;
     }
 
-    const makeVersionNode = (vr) => {
+    const makeVersionNode = (pr, vr) => {
       const ve = document.createElement("div");
       ve.className = "inputPaneVersion";
       // version header要素
@@ -1605,16 +1619,26 @@
         markDirty(state, true);
         renderGantt();
         // dom要素追加
-        const te = makeTaskNode(nt);
+        const te = makeTaskNode(vr, nt);
         te.appendChild(makePlanNode(pl0));
         ve.appendChild(te);
+        calcTreeSticky();
+      }));
+      vh.appendChild(addDeleteBtn(() => {
+        if (!confirm(`"${vr.name}" を削除してもよろしいですか？`)) return;
+        // データから削除, ガントチャート更新
+        pr.versions = pr.versions.filter((v) => v !== vr);
+        markDirty(state, true);
+        renderGantt();
+        // DOMから削除, 入力ペイン更新
+        ve.remove();
         calcTreeSticky();
       }));
       ve.appendChild(vh);
       return ve;
     }
 
-    const makeTaskNode = (tk) => {
+    const makeTaskNode = (vr, tk) => {
       const te = document.createElement("div");
       te.className = "inputPaneTask";
       const th = document.createElement("div");
@@ -1632,11 +1656,21 @@
         te.appendChild(makePlanNode(pl));
         calcTreeSticky();
       }));
+      th.appendChild(addDeleteBtn(() => {
+        if (!confirm(`"${tk.name}" を削除してもよろしいですか？`)) return;
+        // データから削除, ガントチャート更新
+        vr.tasks = vr.tasks.filter((t) => t !== tk);
+        markDirty(state, true);
+        renderGantt();
+        // DOMから削除, 入力ペイン更新
+        te.remove();
+        calcTreeSticky();
+      }));
       te.appendChild(th);
       return te;
     }
 
-    const makePlanNode = (pl) => {
+    const makePlanNode = (tk, pl) => {
       const box = document.createElement("div");
       box.dataset.planId = pl.id;
       box.className = "inputPanePlan" + (state.selectedPlanId === pl.id ? " selected" : "");
@@ -1648,6 +1682,16 @@
       ns.textContent = pl.name;
       ns.addEventListener("click", () => startEditLabel(ns, (v) => { pl.name = v || pl.name; markDirty(state, true); }));
       title.appendChild(ns);
+      title.appendChild(addDeleteBtn(() => {
+        if (!confirm(`"${pl.name}" を削除してもよろしいですか？`)) return;
+        // データから削除, ガントチャート更新
+        tk.plans = tk.plans.filter((p) => p !== pl);
+        markDirty(state, true);
+        renderGantt();
+        // DOMから削除, 入力ペイン更新
+        box.remove();
+        calcTreeSticky();
+      }));
       box.appendChild(title);
 
       const fields = document.createElement("div");
@@ -1933,6 +1977,10 @@
     // header要素 / domain追加ボタン
     const head = document.createElement("div");
     head.className = "inputPaneHeader";
+    const head_caption = document.createElement("span");
+    // head_caption.className = "nameCell";
+    head_caption.textContent = "情報入力パネル";
+    head.appendChild(head_caption);
     head.appendChild(addBtn("+ domain", () => {
       const nd = { id: uid(), name: "新しい domain", cells: {}, projects: [] };
       d.domains.push(nd);
@@ -1952,19 +2000,19 @@
 
       (dom.projects || []).forEach((pr) => {
         // project要素
-        const pe = makeProjectNode(pr);
+        const pe = makeProjectNode(dom, pr);
 
         (pr.versions || []).forEach((vr) => {
           // version要素
-          const ve = makeVersionNode(vr);
+          const ve = makeVersionNode(pr, vr);
 
           (vr.tasks || []).forEach((tk) => {
             // task要素
-            const te = makeTaskNode(tk);
+            const te = makeTaskNode(vr, tk);
 
             (tk.plans || []).forEach((pl) => {
               // plan要素
-              const box = makePlanNode(pl);
+              const box = makePlanNode(tk, pl);
               te.appendChild(box);
             });
             ve.appendChild(te);
