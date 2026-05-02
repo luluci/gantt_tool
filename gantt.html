@@ -1889,6 +1889,20 @@
     return "";
   }
 
+  function clearInputCell(cells, ds) {
+    const c = cells[ds];
+    if (!c || typeof c !== "object" || c === true) {
+      delete cells[ds];
+      return;
+    }
+    delete c.util;
+    if (!c.comment || !String(c.comment.text || "").trim()) {
+      delete cells[ds];
+      return;
+    }
+    cells[ds] = c;
+  }
+
   function shiftIndexByBusinessDays(dates, startIdx, step, plan, state) {
     if (step === 0) return startIdx;
     let idx = startIdx;
@@ -2448,14 +2462,7 @@
     const rect = td.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const blk = contiguousBlock(pl, ds, state, dates);
-    let mode = "move";
-    if (cellIsOn(pl, ds)) {
-      if (ds === blk.start && x < PLAN_CELL_EDGE_PX) mode = "resize-left";
-      else if (ds === blk.end && x > rect.width - PLAN_CELL_EDGE_PX) mode = "resize-right";
-      else mode = "move";
-    } else {
-      mode = "click";
-    }
+    const mode = planCellInteractionMode(pl, ds, x, rect.width, dates);
     state.drag = {
       mode,
       planId: pl.id,
@@ -2565,13 +2572,13 @@
       }
       changed = step !== 0;
     } else if (dg.mode === "resize-left") {
-      let si = startIdx;
-      let ei = endIdx;
+      const si = startIdx;
+      const ei = endIdx;
       if (step > 0) {
         const nextSi = shiftIndexByBusinessDays(dates, si, step, pl, state);
         if (nextSi < 0) return;
         for (let di = si; di < nextSi && di <= ei; di++) {
-          delete nextCells[dates[di]].util;
+          clearInputCell(nextCells, dates[di]);
         }
       } else if (step < 0) {
         let addIdx = si;
@@ -2592,13 +2599,13 @@
       }
       changed = step !== 0;
     } else if (dg.mode === "resize-right") {
-      let si = startIdx;
-      let ei = endIdx;
+      const si = startIdx;
+      const ei = endIdx;
       if (step < 0) {
         const nextEi = shiftIndexByBusinessDays(dates, ei, step, pl, state);
         if (nextEi < 0) return;
         for (let di = ei; di > nextEi && di >= si; di--) {
-          delete nextCells[dates[di]].util;
+          clearInputCell(nextCells, dates[di]);
         }
       } else if (step > 0) {
         let addIdx = ei;
