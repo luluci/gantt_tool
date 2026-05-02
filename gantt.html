@@ -581,7 +581,7 @@
     const c = plan.cells[dateStr];
     const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
     if (!cellIsOn(plan, dateStr)) return u0;
-    if (c && typeof c === "object" && c.util != null) return Number(c.util) || u0;
+    if (c && typeof c === "object" && c.util != null) return Number(c.util.value) || u0;
     return u0;
   }
 
@@ -779,8 +779,8 @@
   function cellVisualKeyFromCell(plan, c) {
     const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
     if (!c || typeof c !== "object") return "off";
-    if (c.util == null) return "on:" + String(u0);
-    const u = Number(c.util);
+    if (c.util == null || c.util.value == null) return "on:" + String(u0);
+    const u = Number(c.util.value);
     return "on:" + String(Number.isFinite(u) ? u : u0);
   }
 
@@ -799,13 +799,13 @@
     if (!td) return;
     const fill = td.querySelector(".fill");
     if (!fill) return;
-    const on = !!(dateCell && typeof dateCell === "object" && dateCell.util && dateCell.util > 1e-5);
+    const on = !!(dateCell && typeof dateCell === "object" && dateCell.util);
     const holType = holidayTypeForDate(ds, plan, state);
     if (on) {
       td.style.background = planBarColor(plan, state);
       fill.style.background = "transparent";
       const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
-      const util = dateCell.util == null ? u0 : (Number(dateCell.util) || u0);
+      const util = dateCell.util == null ? u0 : (Number(dateCell.util.value) || u0);
       fill.textContent = Math.abs(util - u0) > 1e-5 ? String(util) : "";
       fill.style.color = "#111";
       return;
@@ -2564,7 +2564,11 @@
       if (val < 1e-5) {
         delete cell.util;
       } else {
-        cell.util = val;
+        if (val != plan.utilization) {
+          cell.util.value = val;
+        } else {
+          delete cell.util.value;
+        }
       }
       spn.contentEditable = "false";
       updatePlanCellDomByData(plan, ds, plan.cells[ds] || cell, null);
@@ -2647,7 +2651,7 @@
             const util0 = pln.utilization == null ? 1 : Number(pln.utilization);
             let cell = pln.cells[ds];
             if (!cell || typeof cell !== "object" || cell === true) cell = {};
-            if (!cell.util) cell.util = util0;
+            if (!cell.util) cell.util = {};
             pln.cells[ds] = cell;
             updatePlanCellDomByData(pln, ds, pln.cells[ds], dg.cellDomCache);
 
@@ -2739,7 +2743,7 @@
 
           let nextCell = nextCells[dates[addIdx]];
           if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
-          nextCell.util = util0;
+          nextCell.util = {};
           nextCells[dates[addIdx]] = nextCell;
 
           need--;
@@ -2766,7 +2770,7 @@
 
           let nextCell = nextCells[dates[addIdx]];
           if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
-          nextCell.util = util0;
+          nextCell.util = {};
           nextCells[dates[addIdx]] = nextCell;
           
           need--;
