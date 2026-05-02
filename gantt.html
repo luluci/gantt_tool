@@ -828,6 +828,45 @@
     return touched;
   }
 
+  function refreshManhoursRowsDom() {
+    const computeTotalHoursBy = (dateStr, filterFn) => {
+      let totalHours = 0;
+      state.data.domains.forEach((dom) => {
+        (dom.projects || []).forEach((pr) => {
+          (pr.versions || []).forEach((vr) => {
+            (vr.tasks || []).forEach((tk) => {
+              (tk.plans || []).forEach((pl) => {
+                if (!planMatchesCaseFilter(pl) || !filterFn(pl, dom)) return;
+                totalHours += dayHoursAll(pl, dateStr);
+              });
+            });
+          });
+        });
+      });
+      return totalHours;
+    };
+    const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
+    rows.forEach((row) => {
+      const kind = row.dataset.mhKind || "";
+      const caseId = row.dataset.caseId || "";
+      const domainId = row.dataset.domainId || "";
+      row.querySelectorAll("td.daycell[data-date]").forEach((td) => {
+        const ds = td.dataset.date || "";
+        if (!ds) return;
+        let totalHours = 0;
+        if (kind === "case") {
+          totalHours = computeTotalHoursBy(ds, (pl) => pl.caseId === caseId);
+        } else if (kind === "domain") {
+          totalHours = computeTotalHoursBy(ds, (pl, dom) => pl.caseId === caseId && dom.id === domainId);
+        } else {
+          totalHours = computeTotalHoursBy(ds, () => true);
+        }
+        td.textContent = (totalHours / 8).toFixed(1);
+        td.title = totalHours + "hr";
+      });
+    });
+  }
+
   function getDateRange(state) {
     let minD = null, maxD = null;
     const bump = (s) => {
@@ -2127,6 +2166,7 @@
       dates.forEach((ds) => {
         const td = document.createElement("td");
         td.className = "daycell";
+        td.dataset.date = ds;
         
         // 当日の総工数を計算
         let totalHours = 0;
@@ -2158,6 +2198,7 @@
     // 総合人工行（クリック可能、集計行の表示非表示を切り替え）
     const totalManhoursRow = document.createElement("tr");
     totalManhoursRow.className = "treeRow manhoursRow manhoursHeader";
+    //totalManhoursRow.dataset.mhKind = "total";
     const totalLabelCell = document.createElement("td");
     totalLabelCell.className = "treeHead";
     totalLabelCell.colSpan = 2;
@@ -2166,11 +2207,14 @@
     totalManhoursRow.appendChild(totalLabelCell);
     
     //dates.forEach((ds) => {
-      const td = document.createElement("td");
-      td.className = "daycell";
-      td.colSpan = dates.length;
-      td.textContent = "";
-      totalManhoursRow.appendChild(td);
+      dates.forEach((ds) => {
+        const td = document.createElement("td");
+        td.className = "daycell";
+        td.dataset.date = ds;
+        //td.colSpan = dates.length;
+        td.textContent = "";
+        totalManhoursRow.appendChild(td);
+      });
     //});
     
     totalManhoursRow.addEventListener("click", () => {
@@ -2185,6 +2229,8 @@
       // Case別総合行
       const caseRow = createManhoursRow("Case: " + cse.name, (pl) => pl.caseId === cse.id, 0);
       caseRow.className += " manhoursCaseDetailRow";
+      caseRow.dataset.mhKind = "case";
+      caseRow.dataset.caseId = cse.id;
       if (!state.manhoursExpanded) caseRow.style.display = "none";
       thead.appendChild(caseRow);
       
@@ -2192,6 +2238,9 @@
       state.data.domains.forEach((dom) => {
         const domRow = createManhoursRow("  └ " + dom.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id, 1);
         domRow.className += " manhoursDomainDetailRow";
+        domRow.dataset.mhKind = "domain";
+        domRow.dataset.caseId = cse.id;
+        domRow.dataset.domainId = dom.id;
         if (!state.manhoursExpanded) domRow.style.display = "none";
         thead.appendChild(domRow);
       });
@@ -2519,7 +2568,7 @@
       plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
       syncLeftPanePlanSummaryDom(plan.id);
-      if (shouldRefreshGanttNearRangeEdge(plan, getDateRange(state), plan.cells)) renderGantt();
+      refreshManhoursRowsDom();
     };
     td.addEventListener("blur", onChange);
     // Enterキーで確定、Escキーでキャンセル
@@ -2603,7 +2652,7 @@
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
             syncLeftPanePlanSummaryDom(pln.id);
-            if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
+            refreshManhoursRowsDom();
           }
         } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
           // セル移動なし:クリックのみ:稼働率処理
@@ -2619,7 +2668,7 @@
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
           syncLeftPanePlanSummaryDom(pln.id);
-          if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
+          refreshManhoursRowsDom();
         }
       }
       state.drag = null;
