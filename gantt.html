@@ -68,6 +68,16 @@
       border-right: 1px solid var(--border); overflow: auto; background: #fafafa;
     }
     #leftPane.hidden { display: none; }
+    #leftPane button.deleteBtn {
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      padding: 0 3px 2px 3px;
+      border: 1px solid #ff4040;
+      border-radius: 5px;
+      background: #ff4040;
+    }
     .inputPaneHeader {
       padding: 6px;
       background: var(--bg-header);
@@ -1506,6 +1516,14 @@
       b.addEventListener("click", fn);
       return b;
     };
+    const addDeleteBtn = (fn) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "deleteBtn";
+      b.textContent = "✕";
+      b.addEventListener("click", fn);
+      return b;
+    }
 
     const makeDomainNode = (dom) => {
       const domEl = document.createElement("div");
@@ -1513,7 +1531,6 @@
       // domain header要素
       const dh = document.createElement("div");
       dh.className = "inputPaneDomainHeader";
-      dh.style.top = inpPaneHeaderH + "px";
       const ds = document.createElement("span");
       ds.className = "nameCell";
       ds.textContent = dom.name;
@@ -1527,6 +1544,17 @@
         // dom要素追加
         const pe = makeProjectNode(np);
         domEl.appendChild(pe);
+        calcTreeSticky();
+      }));
+      dh.appendChild(addDeleteBtn(() => {
+        if (!confirm(`"${dom.name}" を削除してもよろしいですか？`)) return;
+        // データから削除, ガントチャート更新
+        state.data.domains = state.data.domains.filter((d) => d !== dom);
+        markDirty(state, true);
+        renderGantt();
+        // DOMから削除, 入力ペイン更新
+        domEl.remove();
+        calcTreeSticky();
       }));
       domEl.appendChild(dh);
       return domEl;
@@ -1551,6 +1579,7 @@
 
         const ve = makeVersionNode(nv);
         pe.appendChild(ve);
+        calcTreeSticky();
       }));
       pe.appendChild(ph);
       return pe;
@@ -1579,6 +1608,7 @@
         const te = makeTaskNode(nt);
         te.appendChild(makePlanNode(pl0));
         ve.appendChild(te);
+        calcTreeSticky();
       }));
       ve.appendChild(vh);
       return ve;
@@ -1600,6 +1630,7 @@
         markDirty(state, true);
         renderGantt();
         te.appendChild(makePlanNode(pl));
+        calcTreeSticky();
       }));
       te.appendChild(th);
       return te;
@@ -1910,10 +1941,9 @@
       // dom要素作成
       const domEl = makeDomainNode(nd);
       leftPane.appendChild(domEl);
+      calcTreeSticky();
     }));
     leftPane.appendChild(head);
-    // header要素の高さを取得
-    const inpPaneHeaderH = head.getBoundingClientRect().height;
 
     // domain / project / version / taskのツリー構造
     d.domains.forEach((dom) => {
@@ -1946,10 +1976,18 @@
       leftPane.appendChild(domEl);
     });
     // 描画後にsticky headerの位置を調整
+    calcTreeSticky();
+  }
+
+  function calcTreeSticky() {
+    // header要素の高さを取得
+    const head = leftPane.querySelector(".inputPaneHeader");
+    const inpPaneHeaderH = head.getBoundingClientRect().height;
     // domain要素
     const domains = leftPane.querySelectorAll(".inputPaneDomain");
     domains.forEach((dom) => {
       const domHeader = dom.querySelector(".inputPaneDomainHeader");
+      domHeader.style.top = inpPaneHeaderH + "px";
       const offsetProject = inpPaneHeaderH + domHeader.getBoundingClientRect().height;
 
       // project要素
