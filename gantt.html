@@ -769,6 +769,62 @@
     return plan.color || defaultColorForPlan(plan, state);
   }
 
+  function cloneCells(cells) {
+    return JSON.parse(JSON.stringify(cells || {}));
+  }
+
+  function cellVisualKeyFromCell(plan, c) {
+    const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
+    if (!c || typeof c !== "object") return "off";
+    if (c.util == null) return "on:" + String(u0);
+    const u = Number(c.util);
+    return "on:" + String(Number.isFinite(u) ? u : u0);
+  }
+
+  function buildPlanCellDomCache(planId, dates) {
+    const cache = new Map();
+    dates.forEach((ds) => {
+      const td = ganttVScroll.querySelector('td.daycell[data-plan-id="' + planId + '"][data-date="' + ds + '"]');
+      if (td) cache.set(planId + "|" + ds, td);
+    });
+    return cache;
+  }
+
+  function updatePlanCellDomByData(plan, ds, dateCell, cache) {
+    const key = plan.id + "|" + ds;
+    const td = (cache && cache.get(key)) || ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"]');
+    if (!td) return;
+    const fill = td.querySelector(".fill");
+    if (!fill) return;
+    const on = !!(dateCell && typeof dateCell === "object");
+    const holType = holidayTypeForDate(ds, plan, state);
+    if (on) {
+      td.style.background = planBarColor(plan, state);
+      fill.style.background = "transparent";
+      const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
+      const util = dateCell.util == null ? u0 : (Number(dateCell.util) || u0);
+      fill.textContent = Math.abs(util - u0) > 1e-5 ? String(util) : "";
+      fill.style.color = "#111";
+      return;
+    }
+    td.style.background = holidayBgColor(holType) || "";
+    fill.style.background = "";
+    fill.textContent = "";
+    fill.style.color = "";
+  }
+
+  function applyPlanCellsDomDiff(plan, prevCells, nextCells, dates, cache) {
+    const touched = new Set();
+    dates.forEach((ds) => {
+      const prevKey = cellVisualKeyFromCell(plan, prevCells ? prevCells[ds] : null);
+      const nextKey = cellVisualKeyFromCell(plan, nextCells ? nextCells[ds] : null);
+      if (prevKey === nextKey) return;
+      touched.add(ds);
+      updatePlanCellDomByData(plan, ds, nextCells ? nextCells[ds] : null, cache);
+    });
+    return touched;
+  }
+
   function getDateRange(state) {
     let minD = null, maxD = null;
     const bump = (s) => {
@@ -2336,8 +2392,10 @@
         cell.util = val;
       }
       td.contentEditable = "false";
+      updatePlanCellDomByData(plan, ds, plan.cells[ds] || cell, null);
+      recomputeAllPhaseFromCells(plan);
+      plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
-      renderAll();
     };
     td.addEventListener("blur", onChange);
     // Enterキーで確定、Escキーでキャンセル
@@ -2386,11 +2444,14 @@
       startDate: ds,
       block: blk,
       startX: e.clientX,
-      orig: JSON.parse(JSON.stringify(pl.cells)),
+      orig: cloneCells(pl.cells),
+      draftCells: cloneCells(pl.cells),
       frozenDates: dates.slice(),
       lastStep: 0,
       changed: false,
       dragMoved: false,
+      touchedDates: new Set(),
+      cellDomCache: buildPlanCellDomCache(pl.id, dates),
     };
     td.setPointerCapture(e.pointerId);
     const pln = findPlan(state, pl.id);
@@ -2405,7 +2466,6 @@
       onCellPointerMove(ev, pln);
     };
     const onUp = (ev) => {
-      let requireRender = true;
       td.releasePointerCapture(ev.pointerId);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
@@ -2418,6 +2478,7 @@
             if (!cell || typeof cell !== "object" || cell === true) cell = {};
             if (!cell.util) cell.util = util0;
             pln.cells[ds] = cell;
+            updatePlanCellDomByData(pln, ds, pln.cells[ds], dg.cellDomCache);
 
             const minCellDate = earliestInputCellDate(pln);
             if (minCellDate) pln.plannedStart = minCellDate;
@@ -2430,18 +2491,17 @@
           inputCellUtil(pln, ds);
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
-          requireRender = false;
         } else if (dg.changed) {
+          pln.cells = dg.draftCells;
+          applyPlanCellsDomDiff(pln, dg.orig, pln.cells, dg.frozenDates || [], dg.cellDomCache);
           const minCellDate = earliestInputCellDate(pln);
           if (minCellDate) pln.plannedStart = minCellDate;
+          recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
         }
       }
       state.drag = null;
-      if (requireRender) {
-        renderAll();
-      }
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -2459,7 +2519,8 @@
     const { startIdx, endIdx } = dg.block || {};
     if (startIdx == null || endIdx == null) return;
 
-    const nextCells = JSON.parse(JSON.stringify(dg.orig || {}));
+    const prevDraft = dg.draftCells || cloneCells(dg.orig || {});
+    const nextCells = cloneCells(dg.orig || {});
     let changed = false;
 
     if (dg.mode === "move") {
@@ -2541,12 +2602,11 @@
       return;
     }
 
-    pl.cells = nextCells;
+    const touched = applyPlanCellsDomDiff(pl, prevDraft, nextCells, dates, dg.cellDomCache);
+    dg.touchedDates = touched;
+    dg.draftCells = nextCells;
     dg.lastStep = step;
     dg.changed = changed;
-    recomputeAllPhaseFromCells(pl);
-    pl.plannedEnd = computePlannedEnd(pl, state);
-    renderGantt(dates);
   }
 
   async function saveData() {
