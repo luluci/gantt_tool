@@ -915,7 +915,7 @@
       if (!c || typeof c !== "object" || c.util == null) continue;
       const dMin = Math.abs(daysBetween(ds, minDate));
       const dMax = Math.abs(daysBetween(ds, maxDate));
-      if (dMin <= 7 || dMax <= 7) return true;
+      if (dMin <= 7 || dMin > 14 || dMax <= 7 || dMax > 14) return true;
     }
     return false;
   }
