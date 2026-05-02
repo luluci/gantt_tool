@@ -1794,10 +1794,28 @@
       inpUtil.style.maxWidth = "4.5em";
       inpUtil.value = pl.utilization;
       inpUtil.addEventListener("change", () => {
-        pl.utilization = Number(inpUtil.value) || 1;
+        const nextUtil = Number(inpUtil.value) || 1;
+        pl.utilization = nextUtil;
+        Object.keys(pl.cells || {}).forEach((ds) => {
+          const cell = pl.cells[ds];
+          if (!cell || typeof cell !== "object") return;
+          const utilObj = cell.util;
+          if (!utilObj || typeof utilObj !== "object") return;
+          if (!Object.prototype.hasOwnProperty.call(utilObj, "value")) return;
+          const explicit = Number(utilObj.value);
+          if (!Number.isFinite(explicit)) return;
+          if (Math.abs(explicit - nextUtil) <= 1e-5) {
+            delete utilObj.value;
+          }
+        });
+        Object.keys(pl.cells || {}).forEach((ds) => {
+          updatePlanCellDomByData(pl, ds, pl.cells[ds], null);
+        });
+        recomputeAllPhaseFromCells(pl);
         pl.plannedEnd = computePlannedEnd(pl, state);
+        syncLeftPanePlanSummaryDom(pl.id);
+        refreshManhoursRowsDom();
         markDirty(state, true);
-        renderAll();
       });
       addLabeled(rowSelect, "稼働率", inpUtil);
       // case選択
