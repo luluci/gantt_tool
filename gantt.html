@@ -873,6 +873,20 @@
     return false;
   }
 
+  function syncLeftPanePlanSummaryDom(planId) {
+    if (!planId) return;
+    const pl = findPlan(state, planId);
+    if (!pl) return;
+    const box = leftPane.querySelector('.inputPanePlan[data-plan-id="' + planId + '"]');
+    if (!box) return;
+    const inpStart = box.querySelector('input[data-field="plannedStart"]');
+    if (inpStart) inpStart.value = pl.plannedStart || "";
+    const inpEnd = box.querySelector('input[data-field="plannedEnd"]');
+    if (inpEnd) inpEnd.value = pl.plannedEnd || "";
+    const inpAll = box.querySelector('input[data-field="phasePlannedAll"]');
+    if (inpAll) inpAll.value = String((pl.phaseHours && pl.phaseHours.all && pl.phaseHours.all.planned) || 0);
+  }
+
   function markDirty(state, v) {
     state.dirty = v;
   }
@@ -1567,6 +1581,7 @@
                 const plannedStartCell = document.createElement("td");
                 const inpStart = document.createElement("input");
                 inpStart.type = "date";
+                inpStart.dataset.field = "plannedStart";
                 inpStart.value = pl.plannedStart || "";
                 inpStart.addEventListener("change", () => {
                   pl.plannedStart = inpStart.value;
@@ -1580,6 +1595,7 @@
                 const inpEnd = document.createElement("input");
                 inpEnd.type = "text";
                 inpEnd.readOnly = true;
+                inpEnd.dataset.field = "plannedEnd";
                 inpEnd.value = pl.plannedEnd || "";
                 plannedEndCell.appendChild(inpEnd);
                 plannedRow.appendChild(plannedEndCell);
@@ -1664,6 +1680,7 @@
                 inpP.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].planned) || 0);
                 if (ph === "all") {
                   inpP.readOnly = true;
+                  inpP.dataset.field = "phasePlannedAll";
                   inpP.title = "ガントのセル入力から集計（チャート反映）";
                 } else {
                   inpP.addEventListener("change", () => {
@@ -2427,6 +2444,7 @@
       recomputeAllPhaseFromCells(plan);
       plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
+      syncLeftPanePlanSummaryDom(plan.id);
       if (shouldRefreshGanttNearRangeEdge(plan, getDateRange(state), plan.cells)) renderGantt();
     };
     td.addEventListener("blur", onChange);
@@ -2510,6 +2528,7 @@
             recomputeAllPhaseFromCells(pln);
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
+            syncLeftPanePlanSummaryDom(pln.id);
             if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
         } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
@@ -2525,6 +2544,7 @@
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
+          syncLeftPanePlanSummaryDom(pln.id);
           if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
         }
       }
