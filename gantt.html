@@ -475,6 +475,7 @@
   }
 
   function migratePlanCellsToDayModel(pl) {
+    // 互換性処理
     const u0 = pl.utilization == null ? 1 : Number(pl.utilization);
     Object.keys(pl.cells || {}).forEach((ds) => {
       const c = pl.cells[ds];
@@ -486,11 +487,15 @@
         delete pl.cells[ds];
         return;
       }
-      const comment = c.comment == null ? "" : String(c.comment);
-      const keepComment = (obj) => {
-        if (comment.trim()) obj.comment = comment;
-        return obj;
-      };
+      // 稼働率
+      if (typeof c.util === "number") {
+        if (u0 == c.util) {
+          c.util = {};
+        } else {
+          c.util = { value:u0 };
+        }
+      }
+      pl.cells[ds] = c;
     });
   }
 
