@@ -24,7 +24,7 @@
       --holiday-strong: #ffd7dc;
       --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
       --cal-head-row-h: 20px;
-      --tree-head1-w: 200px;
+      --tree-head1-w: 250px;
       --tree-head2-w: 100px;
 
       --bg-header: #2f4cac;
@@ -256,7 +256,10 @@
       background: #fffef3; border: 1px solid #d7cfa2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       font-size: 11px; white-space: pre-wrap; word-break: break-word; cursor: move; pointer-events: auto;
     }
-    table.gantt { border-collapse: collapse; table-layout: fixed; }
+
+    table.gantt {
+      border-collapse: collapse; table-layout: fixed;
+    }
     table.gantt th {
       padding: 2px 4px; vertical-align: middle;
     }
@@ -265,12 +268,7 @@
       padding: 2px 4px;
       vertical-align: middle;
     }
-    .treeHead {
-      width: var(--tree-head1-w); background: #eee; position: sticky; left: 0; z-index: 100;
-    }
-    .treeHead2 {
-      width: var(--tree-head2-w); background: #eee; position: sticky; left: var(--tree-head1-w); z-index: 100;
-    }
+
     table.gantt thead {
       position: sticky;
       top: 0;
@@ -336,12 +334,7 @@
       white-space: nowrap;
       z-index: 45;
     }
-    .daycell {
-      width: 28px; height: 22px; padding: 0; text-align: center; font-size: 12px; cursor: cell; user-select: none; vertical-align: top;
-    }
-    .daycell.dark { background: var(--bg-darkcol); color: #bbb; cursor: default; }
-    .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
-
+  
     .manhoursRow td.treeHead {
       font-weight: bold;
     }
@@ -350,7 +343,6 @@
       text-align: center;
       font-size: 11px;
       font-weight: bold;
-      cursor: default;
       height: var(--cal-head-row-h);
       
       border-bottom: 1px solid var(--border);
@@ -389,9 +381,58 @@
       height: var(--cal-head-row-h);
     }
 
-    .planRow td.treeHead2 {
-      border: 1px solid var(--border);
+    table.gantt tbody {
+      margin: 0; padding: 0;
     }
+
+    .daycell {
+      width: 28px; height: 22px; padding: 0; text-align: center; font-size: 12px; vertical-align: top;
+    }
+    .daycell.dark { background: var(--bg-darkcol); color: #bbb;  }
+    .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
+
+    .dpvRow td {
+      height: 25px;
+    }
+    .dpvRow td.treeHead {
+      font-weight: 700;
+      border: none;
+    }
+    .dpvRow td.daycell {
+      border: none;
+    }
+    .dpv-domain td { background: var(--bg-domain); border-color: var(--bg-domain); color: var(--color-domain); }
+    .dpv-project td { background: var(--bg-project); border-color: var(--bg-project); color: var(--color-project); }
+    .dpv-version td { background: var(--bg-version); border-color: var(--bg-version); color: var(--color-version); }
+    
+    .treeHead {
+      width: var(--tree-head1-w); background: #eee; position: sticky; left: 0;
+      z-index: 100 !important;
+      border-color: inherit;
+    }
+    .treeHead2 {
+      width: var(--tree-head2-w); background: #eee; position: sticky; left: var(--tree-head1-w);
+      z-index: 100 !important;
+      border-color: inherit;
+    }
+    .planRow th,
+    .planRow td {
+      position: sticky;
+      z-index: 40;
+      border-color: transparent !important;
+    }
+    .planRow th::before,
+    .planRow td::before {
+      content: "";
+      position: absolute;
+      inset: -1px -1px 0 0;
+      background: inherit;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      pointer-events: none;
+      z-index: -1;
+    }
+
     .planRow.selected td.daycell {
       box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent);
     }
@@ -408,16 +449,6 @@
       background: var(--selected);
     }
 
-    .dpvRow td.treeHead {
-      font-weight: 700;
-      border: none;
-    }
-    .dpvRow td.daycell {
-      border: none;
-    }
-    .dpv-domain td { background: var(--bg-domain); border-color: var(--bg-domain); color: var(--color-domain); }
-    .dpv-project td { background: var(--bg-project); border-color: var(--bg-project); color: var(--color-project); }
-    .dpv-version td { background: var(--bg-version); border-color: var(--bg-version); color: var(--color-version); }
     .muted { color: #666; font-size: 11px; }
     button { cursor: pointer; }
     .treeRow { background: #fff; }
@@ -1009,7 +1040,7 @@
     if (!planId) return;
     const sel = '[data-plan-id="' + String(planId).replace(/"/g, '\\"') + '"]';
     const el = leftPane.querySelector(sel);
-    if (el) el.scrollIntoView({ block: "nearest" });
+    if (el) el.scrollIntoView({ block: "center" });
   }
 
   function scrollGanttPlanIntoView(planId) {
@@ -2231,22 +2262,22 @@
   function computeTreeHead2WidthPx() {
     const labels = ["—"];
     state.data.domains.forEach((dom) => {
-      labels.push(dom.name || "");
+      //labels.push(dom.name || "");
       (dom.projects || []).forEach((pr) => {
-        labels.push(pr.name || "");
+        //labels.push(pr.name || "");
         (pr.versions || []).forEach((vr) => {
-          labels.push(vr.name || "");
+          //labels.push(vr.name || "");
           (vr.tasks || []).forEach((tk) => {
             (tk.plans || []).forEach((pl) => labels.push(pl.name || ""));
           });
         });
       });
     });
-    const minsize = 30;
+    const minsize = 100;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (!ctx) return minsize;
-    ctx.font = "13px " + getComputedStyle(document.documentElement).getPropertyValue("--font").trim();
+    ctx.font = "11px " + getComputedStyle(document.documentElement).getPropertyValue("--font").trim();
     let maxW = 0;
     labels.forEach((txt) => {
       const w = ctx.measureText(String(txt)).width;
@@ -2561,7 +2592,8 @@
           const t2 = document.createElement("td");
           t2.className = "treeHead nameCell";
           t2.rowSpan = n;
-          t2.textContent = tk.name;
+          // t2.textContent = tk.name;
+          t2.innerHTML = tk.name;
           tr.appendChild(t2);
         }
         const tPlan = document.createElement("td");
