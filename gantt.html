@@ -88,9 +88,9 @@
       font-weight: 600;
       color: #fff;
       padding: 0 3px 2px 3px;
-      border: 1px solid #ff4040;
+      border: 1px solid #aa4040;
       border-radius: 5px;
-      background: #ff4040;
+      background: #ee4040;
     }
     .inputPaneHeader {
       /* display: flex;
@@ -2448,14 +2448,12 @@
     totalManhoursRow.appendChild(totalLabelCell);
     
     //dates.forEach((ds) => {
-      dates.forEach((ds) => {
-        const td = document.createElement("td");
-        td.className = "daycell";
-        td.dataset.date = ds;
-        //td.colSpan = dates.length;
-        td.textContent = "";
-        totalManhoursRow.appendChild(td);
-      });
+      const td = document.createElement("td");
+      td.className = "daycell";
+      // td.dataset.date = ds;
+      td.colSpan = dates.length;
+      td.textContent = "";
+      totalManhoursRow.appendChild(td);
     //});
     
     totalManhoursRow.addEventListener("click", () => {
