@@ -399,7 +399,10 @@
       height: 3px; margin-top: 1px; background: var(--actual-bar); border-radius: 1px;
     }
     .nameCell { cursor: pointer; }
-    .nameCell input { width: 100%; box-sizing: border-box; }
+    .nameCell textarea  {
+      field-sizing: content;
+      box-sizing: border-box;
+    }
     .planRow.selected td.treeHead,
     .planRow.selected td.treeHead2 {
       background: var(--selected);
@@ -1478,8 +1481,9 @@
 
   function startEditLabel(span, onCommit) {
     const t = span.textContent;
-    const inp = document.createElement("input");
-    inp.type = "text";
+    const inp = document.createElement("textarea");
+    inp.className = "editLabelInput";
+    //inp.type = "text";
     inp.value = t;
     span.replaceWith(inp);
     inp.focus();
@@ -1545,7 +1549,12 @@
       const ds = document.createElement("span");
       ds.className = "nameCell";
       ds.textContent = dom.name;
-      ds.addEventListener("click", () => startEditLabel(ds, (v) => { dom.name = v || dom.name; markDirty(state, true); }));
+      ds.addEventListener("click", () => startEditLabel(ds, (v) => {
+        if (v) {
+          dom.name = v;
+          markDirty(state, true);
+        }
+      }));
       title.appendChild(ds);
       // tool
       const tool = document.createElement("div");
