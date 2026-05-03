@@ -34,6 +34,20 @@
       --color-domain: #fff;
       --color-project: #fff;
       --color-version: #41205f;
+
+      --z-index-comment: 109;
+      --z-index-comment-line: 108;
+      --z-index-header-caption: 99;
+      --z-index-header: 98;
+      --z-index-header-calendar: 97;
+      --z-index-body-caption: 89;
+      --z-index-body: 88;
+      /* 入力ペイン */
+      --z-index-input-tool: 19;
+      --z-index-input-domain: 18;
+      --z-index-input-project: 17;
+      --z-index-input-version: 16;
+      --z-index-input-task: 15;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; font-family: var(--font); font-size: 13px; }
@@ -119,7 +133,7 @@
 
       position: sticky;
       top: 0;
-      z-index: 10;
+      z-index: var(--z-index-input-tool);
     }
     .inputPaneDomain {
       margin: 0;
@@ -131,7 +145,7 @@
       color: var(--color-domain);
 
       position: sticky;
-      z-index: 9;
+      z-index: var(--z-index-input-domain);
     }
     .inputPaneProject {
       margin: 0;
@@ -143,7 +157,7 @@
       color: var(--color-project);
 
       position: sticky;
-      z-index: 8;
+      z-index: var(--z-index-input-project);
     }
     .inputPaneVersion {
       margin: 0;
@@ -155,7 +169,7 @@
       color: var(--color-version);
 
       position: sticky;
-      z-index: 7;
+      z-index: var(--z-index-input-version);
     }
     .inputPaneTask {
       margin: 0;
@@ -166,7 +180,7 @@
       border-color: #ddd;
 
       position: sticky;
-      z-index: 6;
+      z-index: var(--z-index-input-task);
     }
     .inputPanePlan {
       margin: 4px;
@@ -249,8 +263,14 @@
     #rightWrap { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
     #ganttVScroll { flex: 1 1 auto; overflow: auto; min-height: 0; }
     .ganttStage { position: relative; width: max-content; min-width: 100%; }
-    .commentLayer { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 6; }
-    .commentLineLayer { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; }
+    .commentLayer {
+      position: absolute; left: 0; top: 0; pointer-events: none;
+      z-index: var(--z-index-comment);
+    }
+    .commentLineLayer {
+      position: absolute; left: 0; top: 0; pointer-events: none;
+      z-index: var(--z-index-comment-line);
+    }
     .commentCard {
       position: absolute; min-width: 160px; max-width: 220px; padding: 4px 6px;
       background: #fffef3; border: 1px solid #d7cfa2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
@@ -272,12 +292,12 @@
     table.gantt thead {
       position: sticky;
       top: 0;
-      z-index: 200;
+      z-index: var(--z-index-header);
     }
     table.gantt thead th,
     table.gantt thead td {
       position: sticky;
-      z-index: 40;
+      z-index: var(--z-index-header);
       border-color: transparent;
     }
     table.gantt thead th::before,
@@ -317,7 +337,9 @@
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
     }
-    table.gantt thead th.treeHead, table.gantt thead th.treeHead2 { z-index: 120; }
+    table.gantt thead th.treeHead, table.gantt thead th.treeHead2 {
+      z-index: var(--z-index-header-caption) !important;
+    }
     .dayHead {
       width: 28px; height: var(--cal-head-row-h); font-size: 10px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0;
     }
@@ -332,7 +354,7 @@
       display: inline-block;
       padding-left: 6px;
       white-space: nowrap;
-      z-index: 45;
+      z-index: var(--z-index-header-calendar) !important;
     }
   
     .manhoursRow td.treeHead {
@@ -355,7 +377,7 @@
       color: #fff;
       font-weight: bold;
       cursor: pointer;
-      z-index: 50;
+      z-index: var(--z-index-header-caption) !important;
     }
     .manhoursHeader td.daycell {
       background: var(--bg-header) !important;
@@ -367,7 +389,7 @@
     .manhoursCaseDetailRow td.treeHead {
       background: #e4d7bf;
         border-left: 1px solid var(--border);
-        z-index: 50;
+        z-index: var(--z-index-header-caption) !important;
     }
     .manhoursCaseDetailRow td.daycell {
       background: #e4d7bf !important;
@@ -376,7 +398,7 @@
     .manhoursDomainDetailRow td.treeHead {
       background: #d7e4bf;
       border-left: 1px solid var(--border);
-      z-index: 50;
+      z-index: var(--z-index-header-caption) !important;
     }
     .manhoursDomainDetailRow td.daycell {
       background: #d7e4bf;
@@ -385,7 +407,7 @@
     .manhoursMemberDetailRow td.treeHead {
       background: #bfd7e4;
       border-left: 1px solid var(--border);
-      z-index: 50;
+      z-index: var(--z-index-header-caption) !important;
     }
     .manhoursMemberDetailRow td.daycell {
       background: #bfd7e4 !important;
@@ -418,18 +440,18 @@
     
     .treeHead {
       width: var(--tree-head1-w); background: #eee; position: sticky; left: 0;
-      z-index: 100 !important;
+      z-index: var(--z-index-body-caption) !important;
       border-color: inherit;
     }
     .treeHead2 {
       width: var(--tree-head2-w); background: #eee; position: sticky; left: var(--tree-head1-w);
-      z-index: 100 !important;
+      z-index: var(--z-index-body-caption) !important;
       border-color: inherit;
     }
     .planRow th,
     .planRow td {
       position: sticky;
-      z-index: 40;
+      z-index: var(--z-index-body);
       border-color: transparent !important;
     }
     .planRow th::before,
