@@ -276,6 +276,11 @@
       background: #fffef3; border: 1px solid #d7cfa2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
       font-size: 11px; white-space: pre-wrap; word-break: break-word; cursor: move; pointer-events: auto;
     }
+    .nodeCommentCard {
+      position: sticky; min-width: 160px; max-width: 220px; padding: 4px 6px;
+      background: #fffef3; border: 1px solid #d7cfa2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      font-size: 11px; white-space: pre-wrap; word-break: break-word; cursor: move; pointer-events: auto;
+    }
 
     table.gantt {
       border-collapse: collapse; table-layout: fixed;
@@ -819,6 +824,14 @@
     return String(node.comment.text || "");
   }
 
+  function getNodeCommentPos(node) {
+    if (!node || typeof node !== "object" || !node.comment || typeof node.comment !== "object" || !node.comment.pos || typeof node.comment !== "object") return null;
+    const x = Number(node.comment.pos.x);
+    const y = Number(node.comment.pos.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }
+
   function setNodeComment(node, text) {
     if (!node || typeof node !== "object") return;
     const val = String(text || "");
@@ -829,6 +842,13 @@
       delete node.comment;
     }
   }
+
+  function setNodeCommentPos(node, pos) {
+    if (!node || typeof node !== "object") return;
+    if (!node.comment || typeof node.comment !== "object") node.comment = { text:"" };
+    node.comment.pos = { x: Number(pos.x) || 0, y: Number(pos.y) || 0 };
+  }
+
 
   function getCellComment(target, date) {
     const c = target && target.cells ? target.cells[date] : null;
@@ -2708,7 +2728,7 @@
           // t2.textContent = tk.name;
           t2.innerHTML = tk.name;
           
-          // Version（Task行）のコメント表示
+          // Taskのコメント表示
           if (getNodeComment(tk).trim()) {
             const dot = document.createElement("span");
             dot.style.position = "absolute";
@@ -2755,6 +2775,7 @@
             openCommentPopup(pl, null, "Plan: " + pl.name, dot);
           });
           tPlan.appendChild(dot);
+          //commentRefs.push({ key: null, kind: "plan", label: pl.name, target: pl, date: null, dot });
         }
         
         tPlan.addEventListener("click", () => {
@@ -2817,16 +2838,16 @@
       commentLayer.style.width = stage.offsetWidth + "px";
       commentLayer.style.height = stage.offsetHeight + "px";
       refs.forEach((ref) => {
-        const text = getCellComment(ref.target, ref.date);
+        const text = ref.date ? getCellComment(ref.target, ref.date) : getNodeComment(ref.target);
         if (!text.trim()) return;
         const dotR = ref.dot.getBoundingClientRect();
         const dotX = dotR.left - rect.left + dotR.width / 2;
         const dotY = dotR.top - rect.top + dotR.height / 2;
         const card = document.createElement("div");
-        card.className = "commentCard";
+        card.className = ref.date ? "commentCard" : "nodeCommentCard";
         card.textContent = text;
         commentLayer.appendChild(card);
-        const saved = getCellCommentPos(ref.target, ref.date);
+        const saved = ref.date ? getCellCommentPos(ref.target, ref.date) : getNodeCommentPos(ref.target);
         const cw = card.offsetWidth;
         const ch = card.offsetHeight;
         // 相対座標を絶対座標に変換
@@ -2877,7 +2898,11 @@
             // 絶対座標を相対座標に変換して保存
             const relX = px - dotX;
             const relY = py - dotY;
-            setCellCommentPos(ref.target, ref.date, { x: relX, y: relY });
+            if (ref.date) {
+              setCellCommentPos(ref.target, ref.date, { x: relX, y: relY });
+            } else {
+              setNodeCommentPos(ref.target, { x: relX, y: relY });
+            }
             markDirty(state, true);
             renderGantt(dates);
           };
