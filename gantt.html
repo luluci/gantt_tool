@@ -2711,8 +2711,9 @@
         const saved = getCellCommentPos(ref.target, ref.date);
         const cw = card.offsetWidth;
         const ch = card.offsetHeight;
-        const baseX = saved ? saved.x : dotX + 12;
-        const baseY = saved ? saved.y : dotY - 10;
+        // 相対座標を絶対座標に変換
+        const baseX = saved ? dotX + saved.x : dotX + 12;
+        const baseY = saved ? dotY + saved.y : dotY - 10;
         const pos = clampCommentPos(baseX, baseY, cw, ch);
         card.style.left = pos.x + "px";
         card.style.top = pos.y + "px";
@@ -2755,7 +2756,10 @@
             card.removeEventListener("pointerup", onUp);
             const px = parseFloat(card.style.left) || 0;
             const py = parseFloat(card.style.top) || 0;
-            setCellCommentPos(ref.target, ref.date, { x: px, y: py });
+            // 絶対座標を相対座標に変換して保存
+            const relX = px - dotX;
+            const relY = py - dotY;
+            setCellCommentPos(ref.target, ref.date, { x: relX, y: relY });
             markDirty(state, true);
             renderGantt(dates);
           };
