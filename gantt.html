@@ -2297,6 +2297,11 @@
     return state.caseFilter.includes(pl.caseId || "");
   }
 
+  function caseMatchesCaseFilter(cs) {
+    if (!state.caseFilter || state.caseFilter.length === 0) return true;
+    return state.caseFilter.includes(cs.id || "");
+  }
+
   function contiguousBlock(plan, dateStr, state, datesOverride) {
     const dates = datesOverride || getDateRange(state);
     const idx = dates.indexOf(dateStr);
@@ -2549,7 +2554,7 @@
     thead.appendChild(totalManhoursRow);
 
     // Case別の集計行
-    state.data.cases.forEach((cse) => {
+    state.data.cases.filter(caseMatchesCaseFilter).forEach((cse) => {
       // Case別総合行
       const isCaseExpanded = state.caseExpanded[cse.id] !== false;
       
