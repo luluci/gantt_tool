@@ -93,11 +93,6 @@
       background: #ee4040;
     }
     .inputPaneHeader {
-      /* display: flex;
-      flex-direction: row;
-      justify-content: space-between;
-      align-items: center;
-      gap: 6px; */
       display: grid;
       grid-template-columns: 1fr 100px;
 
@@ -188,6 +183,9 @@
       border: 1px solid #ddd;
       border-radius: 4px;
     }
+    .inputPanePlan.selected {
+      background: var(--selected);
+    }
     .inputPanePlanHeader {
       padding: 0;
     }
@@ -223,8 +221,12 @@
       border: 1px solid var(--border);
       padding: 4px !important;
     }
-    .inputPanePlan.selected {
-      background: var(--selected);
+    .inputPanePlan .planRowH label:has(.commentTextarea) {
+      width: 100%;
+    }
+    .inputPanePlan .commentTextarea {
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .dateTable {
@@ -393,8 +395,8 @@
     }
     .manhoursCaseDetailRow td.treeHead {
       background: #e4d7bf;
-        border-left: 1px solid var(--border);
-        z-index: var(--z-index-header-caption) !important;
+      border-left: 1px solid var(--border);
+      z-index: var(--z-index-header-caption) !important;
     }
     .manhoursCaseDetailRow td.daycell {
       background: #e4d7bf !important;
@@ -613,6 +615,7 @@
               pl.utilization = pl.utilization == null ? 1 : Number(pl.utilization);
               pl.phaseHours = pl.phaseHours || {};
               pl.cells = pl.cells || {};
+              pl.comment = pl.comment || {};
               if (pl.statusId === undefined) pl.statusId = d.statuses[0] && d.statuses[0].id || null;
               migratePlanCellsToDayModel(pl);
               d.phases.forEach((ph) => {
@@ -1204,8 +1207,17 @@
         // Cell mode
         setCellComment(commentPopupTarget, commentPopupDate, ta.value);
       } else {
-        // Node mode
+        // Node mode: plan, task などを対象に comment を設定
         setNodeComment(commentPopupTarget, ta.value);
+        // plan のコメント変更時、左入力ペインの textarea を直接更新
+        if (commentPopupTarget.plans === undefined) {
+          // plan オブジェクト（plans プロパティを持つのは task なので、plans がなければ plan）
+          const planId = commentPopupTarget.id;
+          const textarea = leftPane.querySelector('textarea[data-field="comment"][data-plan-id="' + planId + '"]');
+          if (textarea) {
+            textarea.value = ta.value;
+          }
+        }
       }
       markDirty(state, true);
       closePopup();
@@ -1632,6 +1644,7 @@
         statusId: d.statuses[0] && d.statuses[0].id || null,
         phaseHours: {},
         cells: {},
+        comment: {},
       };
       d.phases.forEach((ph) => { pl.phaseHours[ph] = { planned: 0, actual: 0 }; });
       return pl;
@@ -2141,6 +2154,28 @@
         renderAll();
       });
       addLabeled(rowSelect, "status", selSt);
+
+      // コメント欄の追加
+      const rowComment = addMiniRow();
+      const commentTextarea = document.createElement("textarea");
+      commentTextarea.dataset.field = "comment";
+      commentTextarea.dataset.planId = pl.id;
+      commentTextarea.rows = 3;
+      commentTextarea.className = "commentTextarea";
+      commentTextarea.value = pl.comment.text || "";
+      commentTextarea.addEventListener("blur", () => {
+        pl.comment.text = commentTextarea.value;
+        markDirty(state, true);
+        renderGantt();
+      });
+      commentTextarea.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          commentTextarea.blur();
+        } else if (e.key === "Escape") {
+          commentTextarea.value = pl.comment.text || "";
+        }
+      });
+      addLabeled(rowComment, "コメント", commentTextarea);
 
       box.appendChild(fields);
       return box;
