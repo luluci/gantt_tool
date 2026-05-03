@@ -79,14 +79,43 @@
       background: #ff4040;
     }
     .inputPaneHeader {
+      /* display: flex;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px; */
+      display: grid;
+      grid-template-columns: 1fr 100px;
+
+      font-weight: 600;
+      margin: 0;
       padding: 6px;
+
+      & .inputPaneHeaderTitle {
+        grid-column: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      & .inputPaneHeaderTool {
+        grid-column: 2;
+
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+
+        & button {
+          white-space: nowrap;
+        }
+      }
+    }
+    .inputPaneToolHeader {
       background: var(--bg-header);
       border-color: 3a68ff;
       color: #fff;
-
-      display: flex;
-      align-items: center;
-      gap: 6px;
 
       position: sticky;
       top: 0;
@@ -97,13 +126,6 @@
       padding: 0;
     }
     .inputPaneDomainHeader {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
-      margin: 0;
-      padding: 4px 6px;
-
       background: var(--bg-domain);
       border-color: var(--bg-domain);
       color: var(--color-domain);
@@ -116,13 +138,6 @@
       padding: 0;
     }
     .inputPaneProjectHeader {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
-      margin: 0;
-      padding: 4px 6px;
-
       background: var(--bg-project);
       border-color: var(--bg-project);
       color: var(--color-project);
@@ -135,13 +150,6 @@
       padding: 0;
     }
     .inputPaneVersionHeader {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
-      margin: 0;
-      padding: 4px 6px;
-
       background: var(--bg-version);
       border-color: var(--bg-version);
       color: var(--color-version);
@@ -154,13 +162,6 @@
       padding: 0;
     }
     .inputPaneTaskHeader {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-weight: 600;
-      margin: 0;
-      padding: 4px 6px;
-
       background: #ddd;
       border-color: #ddd;
 
@@ -172,6 +173,9 @@
       padding: 6px;
       border: 1px solid #ddd;
       border-radius: 4px;
+    }
+    .inputPanePlanHeader {
+      padding: 0;
     }
     .inputPanePlan table.hourTable {
       width: 100%;
@@ -1534,13 +1538,19 @@
       domEl.className = "inputPaneDomain";
       // domain header要素
       const dh = document.createElement("div");
-      dh.className = "inputPaneDomainHeader";
+      dh.className = "inputPaneHeader inputPaneDomainHeader";
+      // title
+      const title = document.createElement("div");
+      title.className = "inputPaneHeaderTitle";
       const ds = document.createElement("span");
       ds.className = "nameCell";
       ds.textContent = dom.name;
       ds.addEventListener("click", () => startEditLabel(ds, (v) => { dom.name = v || dom.name; markDirty(state, true); }));
-      dh.appendChild(ds);
-      dh.appendChild(addBtn("+ project", () => {
+      title.appendChild(ds);
+      // tool
+      const tool = document.createElement("div");
+      tool.className = "inputPaneHeaderTool";
+      tool.appendChild(addBtn("+ project", () => {
         const np = { id: uid(), name: "新しい project", cells: {}, versions: [] };
         dom.projects.push(np);
         markDirty(state, true);
@@ -1550,7 +1560,7 @@
         domEl.appendChild(pe);
         calcTreeSticky();
       }));
-      dh.appendChild(addDeleteBtn(() => {
+      tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${dom.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
         state.data.domains = state.data.domains.filter((d) => d !== dom);
@@ -1560,6 +1570,9 @@
         domEl.remove();
         calcTreeSticky();
       }));
+      // element構築
+      dh.appendChild(title);
+      dh.appendChild(tool);
       domEl.appendChild(dh);
       return domEl;
     };
@@ -1569,13 +1582,19 @@
       pe.className = "inputPaneProject";
       // project header要素
       const ph = document.createElement("div");
-      ph.className = "inputPaneProjectHeader";
+      ph.className = "inputPaneHeader inputPaneProjectHeader";
+      // title
+      const title = document.createElement("div");
+      title.className = "inputPaneHeaderTitle";
       const ps = document.createElement("span");
       ps.className = "nameCell";
       ps.textContent = pr.name;
       ps.addEventListener("click", () => startEditLabel(ps, (v) => { pr.name = v || pr.name; markDirty(state, true); }));
-      ph.appendChild(ps);
-      ph.appendChild(addBtn("+ version", () => {
+      title.appendChild(ps);
+      // tool
+      const tool = document.createElement("div");
+      tool.className = "inputPaneHeaderTool";
+      tool.appendChild(addBtn("+ version", () => {
         const nv = { id: uid(), name: "新しい version", cells: {}, tasks: [] };
         pr.versions.push(nv);
         markDirty(state, true);
@@ -1585,7 +1604,7 @@
         pe.appendChild(ve);
         calcTreeSticky();
       }));
-      ph.appendChild(addDeleteBtn(() => {
+      tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${pr.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
         dom.projects = dom.projects.filter((p) => p !== pr);
@@ -1595,6 +1614,9 @@
         pe.remove();
         calcTreeSticky();
       }));
+      // element構築
+      ph.appendChild(title);
+      ph.appendChild(tool);
       pe.appendChild(ph);
       return pe;
     }
@@ -1604,13 +1626,19 @@
       ve.className = "inputPaneVersion";
       // version header要素
       const vh = document.createElement("div");
-      vh.className = "inputPaneVersionHeader";
+      vh.className = "inputPaneHeader inputPaneVersionHeader";
+      // title
+      const title = document.createElement("div");
+      title.className = "inputPaneHeaderTitle";
       const vs = document.createElement("span");
       vs.className = "nameCell";
       vs.textContent = vr.name;
       vs.addEventListener("click", () => startEditLabel(vs, (v) => { vr.name = v || vr.name; markDirty(state, true); }));
-      vh.appendChild(vs);
-      vh.appendChild(addBtn("+ task", () => {
+      title.appendChild(vs);
+      // tool
+      const tool = document.createElement("div");
+      tool.className = "inputPaneHeaderTool";
+      tool.appendChild(addBtn("+ task", () => {
         // 変数要素追加
         const nt = { id: uid(), name: "新しい task", plans: [] };
         const pl0 = createDefaultPlan();
@@ -1624,7 +1652,7 @@
         ve.appendChild(te);
         calcTreeSticky();
       }));
-      vh.appendChild(addDeleteBtn(() => {
+      tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${vr.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
         pr.versions = pr.versions.filter((v) => v !== vr);
@@ -1634,6 +1662,9 @@
         ve.remove();
         calcTreeSticky();
       }));
+      // element構築
+      vh.appendChild(title);
+      vh.appendChild(tool);
       ve.appendChild(vh);
       return ve;
     }
@@ -1642,13 +1673,19 @@
       const te = document.createElement("div");
       te.className = "inputPaneTask";
       const th = document.createElement("div");
-      th.className = "inputPaneTaskHeader";
+      th.className = "inputPaneHeader inputPaneTaskHeader";
+      // title
+      const title = document.createElement("div");
+      title.className = "inputPaneHeaderTitle";
       const ts = document.createElement("span");
       ts.className = "nameCell";
       ts.textContent = tk.name;
       ts.addEventListener("click", () => startEditLabel(ts, (v) => { tk.name = v || tk.name; markDirty(state, true); }));
-      th.appendChild(ts);
-      th.appendChild(addBtn("+ plan", () => {
+      title.appendChild(ts);
+      // tool
+      const tool = document.createElement("div");
+      tool.className = "inputPaneHeaderTool";
+      tool.appendChild(addBtn("+ plan", () => {
         const pl = createDefaultPlan();
         tk.plans.push(pl);
         markDirty(state, true);
@@ -1656,7 +1693,7 @@
         te.appendChild(makePlanNode(pl));
         calcTreeSticky();
       }));
-      th.appendChild(addDeleteBtn(() => {
+      tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${tk.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
         vr.tasks = vr.tasks.filter((t) => t !== tk);
@@ -1666,6 +1703,9 @@
         te.remove();
         calcTreeSticky();
       }));
+      // element構築
+      th.appendChild(title);
+      th.appendChild(tool);
       te.appendChild(th);
       return te;
     }
@@ -1674,15 +1714,20 @@
       const box = document.createElement("div");
       box.dataset.planId = pl.id;
       box.className = "inputPanePlan" + (state.selectedPlanId === pl.id ? " selected" : "");
+      const ph = document.createElement("div");
+      ph.className = "inputPaneHeader inputPanePlanHeader";
+      // title
       const title = document.createElement("div");
-      title.style.display = "flex";
-      title.style.gap = "6px";
+      title.className = "inputPaneHeaderTitle";
       const ns = document.createElement("span");
       ns.className = "nameCell";
       ns.textContent = pl.name;
       ns.addEventListener("click", () => startEditLabel(ns, (v) => { pl.name = v || pl.name; markDirty(state, true); }));
       title.appendChild(ns);
-      title.appendChild(addDeleteBtn(() => {
+      // tool
+      const tool = document.createElement("div");
+      tool.className = "inputPaneHeaderTool";
+      tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${pl.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
         tk.plans = tk.plans.filter((p) => p !== pl);
@@ -1692,7 +1737,10 @@
         box.remove();
         calcTreeSticky();
       }));
-      box.appendChild(title);
+      // element構築
+      ph.appendChild(title);
+      ph.appendChild(tool);
+      box.appendChild(ph);
 
       const fields = document.createElement("div");
       fields.className = "planFields";
@@ -1976,12 +2024,18 @@
 
     // header要素 / domain追加ボタン
     const head = document.createElement("div");
-    head.className = "inputPaneHeader";
+    head.className = "inputPaneHeader inputPaneToolHeader";
+    // title
+    const title = document.createElement("div");
+    title.className = "inputPaneHeaderTitle";
     const head_caption = document.createElement("span");
     // head_caption.className = "nameCell";
     head_caption.textContent = "情報入力パネル";
-    head.appendChild(head_caption);
-    head.appendChild(addBtn("+ domain", () => {
+    title.appendChild(head_caption);
+    // tool
+    const tool = document.createElement("div");
+    tool.className = "inputPaneHeaderTool";
+    tool.appendChild(addBtn("+ domain", () => {
       const nd = { id: uid(), name: "新しい domain", cells: {}, projects: [] };
       d.domains.push(nd);
       markDirty(state, true);
@@ -1991,6 +2045,9 @@
       leftPane.appendChild(domEl);
       calcTreeSticky();
     }));
+    // element構築
+    head.appendChild(title);
+    head.appendChild(tool);
     leftPane.appendChild(head);
 
     // domain / project / version / taskのツリー構造
@@ -2029,7 +2086,7 @@
 
   function calcTreeSticky() {
     // header要素の高さを取得
-    const head = leftPane.querySelector(".inputPaneHeader");
+    const head = leftPane.querySelector(".inputPaneToolHeader");
     const inpPaneHeaderH = head.getBoundingClientRect().height;
     // domain要素
     const domains = leftPane.querySelectorAll(".inputPaneDomain");
