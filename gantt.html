@@ -814,6 +814,22 @@
     return target.cells;
   }
 
+  function getNodeComment(node) {
+    if (!node || typeof node !== "object" || !node.comment || typeof node.comment !== "object") return "";
+    return String(node.comment.text || "");
+  }
+
+  function setNodeComment(node, text) {
+    if (!node || typeof node !== "object") return;
+    const val = String(text || "");
+    if (val.trim()) {
+      if (!node.comment || typeof node.comment !== "object") node.comment = {};
+      node.comment.text = val;
+    } else {
+      delete node.comment;
+    }
+  }
+
   function getCellComment(target, date) {
     const c = target && target.cells ? target.cells[date] : null;
     if (!c || typeof c !== "object" || !c.comment || typeof c.comment !== "object") return "";
@@ -1163,15 +1179,27 @@
     };
     bClose.addEventListener("click", closePopup);
     bSave.addEventListener("click", () => {
-      if (!commentPopupTarget || !commentPopupDate) return;
-      setCellComment(commentPopupTarget, commentPopupDate, ta.value);
+      if (!commentPopupTarget) return;
+      if (commentPopupDate) {
+        // Cell mode
+        setCellComment(commentPopupTarget, commentPopupDate, ta.value);
+      } else {
+        // Node mode
+        setNodeComment(commentPopupTarget, ta.value);
+      }
       markDirty(state, true);
       closePopup();
       renderAll();
     });
     bDel.addEventListener("click", () => {
-      if (!commentPopupTarget || !commentPopupDate) return;
-      setCellComment(commentPopupTarget, commentPopupDate, "");
+      if (!commentPopupTarget) return;
+      if (commentPopupDate) {
+        // Cell mode
+        setCellComment(commentPopupTarget, commentPopupDate, "");
+      } else {
+        // Node mode
+        setNodeComment(commentPopupTarget, "");
+      }
       markDirty(state, true);
       closePopup();
       renderAll();
@@ -1196,8 +1224,10 @@
     if (state.commentDisplayMode === "context") {
       state.commentContextKey = refKey || commentRefKey("plan", target, date);
     }
-    commentPopupText.value = getCellComment(target, date);
-    commentPopupMeta.textContent = label + " / " + date;
+    const comment = date ? getCellComment(target, date) : getNodeComment(target);
+    commentPopupText.value = comment;
+    const labelStr = date ? (label + " / " + date) : label;
+    commentPopupMeta.textContent = labelStr;
     const r = anchorEl.getBoundingClientRect();
     const left = Math.min(window.innerWidth - 280, Math.max(8, r.left + 8));
     const top = Math.min(window.innerHeight - 220, Math.max(8, r.bottom + 6));
@@ -2677,15 +2707,65 @@
           t2.rowSpan = n;
           // t2.textContent = tk.name;
           t2.innerHTML = tk.name;
+          
+          // Version（Task行）のコメント表示
+          if (getNodeComment(tk).trim()) {
+            const dot = document.createElement("span");
+            dot.style.position = "absolute";
+            dot.style.top = "2px";
+            dot.style.right = "2px";
+            dot.style.width = "5px";
+            dot.style.height = "5px";
+            dot.style.borderRadius = "50%";
+            dot.style.background = "#b0293a";
+            dot.style.cursor = "pointer";
+            dot.title = "コメントあり";
+            dot.addEventListener("click", (e) => {
+              e.stopPropagation();
+              openCommentPopup(tk, null, "Task: " + tk.name, dot);
+            });
+            t2.appendChild(dot);
+          }
+          
+          t2.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openCommentPopup(tk, null, "Task: " + tk.name, t2);
+          });
           tr.appendChild(t2);
         }
         const tPlan = document.createElement("td");
         tPlan.className = "treeHead2 nameCell";
         tPlan.textContent = pl.name;
+        
+        // Plan のコメント表示
+        if (getNodeComment(pl).trim()) {
+          const dot = document.createElement("span");
+          dot.style.position = "absolute";
+          dot.style.top = "2px";
+          dot.style.right = "2px";
+          dot.style.width = "5px";
+          dot.style.height = "5px";
+          dot.style.borderRadius = "50%";
+          dot.style.background = "#b0293a";
+          dot.style.cursor = "pointer";
+          dot.title = "コメントあり";
+          dot.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openCommentPopup(pl, null, "Plan: " + pl.name, dot);
+          });
+          tPlan.appendChild(dot);
+        }
+        
         tPlan.addEventListener("click", () => {
           state.selectedPlanId = pl.id;
           applySelectedPlanDom(state.selectedPlanId);
           scrollLeftPlanIntoView(state.selectedPlanId);
+        });
+        tPlan.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openCommentPopup(pl, null, "Plan: " + pl.name, tPlan);
         });
         tr.appendChild(tPlan);
         appendPlanDayCells(tr, dom, pr, vr, pl);
