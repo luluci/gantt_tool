@@ -374,10 +374,21 @@
       height: var(--cal-head-row-h);
     }
     .manhoursDomainDetailRow td.treeHead {
+      background: #d7e4bf;
       border-left: 1px solid var(--border);
       z-index: 50;
     }
     .manhoursDomainDetailRow td.daycell {
+      background: #d7e4bf;
+      height: var(--cal-head-row-h);
+    }
+    .manhoursMemberDetailRow td.treeHead {
+      background: #bfd7e4;
+      border-left: 1px solid var(--border);
+      z-index: 50;
+    }
+    .manhoursMemberDetailRow td.daycell {
+      background: #bfd7e4 !important;
       height: var(--cal-head-row-h);
     }
 
@@ -434,7 +445,7 @@
     }
 
     .planRow.selected td.daycell {
-      box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent);
+      box-shadow: inset 0 2px 0 var(--accent), inset 0 -3px 0 var(--accent);
     }
     .daycell .actual {
       height: 3px; margin-top: 1px; background: var(--actual-bar); border-radius: 1px;
@@ -2449,6 +2460,18 @@
         domRow.dataset.domainId = dom.id;
         if (!state.manhoursExpanded) domRow.style.display = "none";
         thead.appendChild(domRow);
+        
+        // Member別の集計行
+        state.data.members.forEach((mem) => {
+          const memRow = createManhoursRow("    └ " + mem.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id && pl.ownerId === mem.id, 2);
+          memRow.className += " manhoursMemberDetailRow";
+          memRow.dataset.mhKind = "member";
+          memRow.dataset.caseId = cse.id;
+          memRow.dataset.domainId = dom.id;
+          memRow.dataset.memberId = mem.id;
+          if (!state.manhoursExpanded) memRow.style.display = "none";
+          thead.appendChild(memRow);
+        });
       });
     });
 
