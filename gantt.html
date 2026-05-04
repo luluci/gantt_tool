@@ -1679,6 +1679,7 @@
     const makeDomainNode = (dom) => {
       const domEl = document.createElement("div");
       domEl.className = "inputPaneDomain";
+      domEl.dataset.id = dom.id;
       // domain header要素
       const dh = document.createElement("div");
       dh.className = "inputPaneHeader inputPaneDomainHeader";
@@ -1728,6 +1729,7 @@
     const makeProjectNode = (dom, pr) => {
       const pe = document.createElement("div");
       pe.className = "inputPaneProject";
+      pe.dataset.id = pr.id;
       // project header要素
       const ph = document.createElement("div");
       ph.className = "inputPaneHeader inputPaneProjectHeader";
@@ -1772,6 +1774,7 @@
     const makeVersionNode = (pr, vr) => {
       const ve = document.createElement("div");
       ve.className = "inputPaneVersion";
+      ve.dataset.id = vr.id;
       // version header要素
       const vh = document.createElement("div");
       vh.className = "inputPaneHeader inputPaneVersionHeader";
@@ -2643,6 +2646,18 @@
       tdLabel.colSpan = 2;
       tdLabel.className = "treeHead";
       tdLabel.textContent = label;
+      tdLabel.style.cursor = "pointer";
+      tdLabel.addEventListener("click", () => {
+        const selector = kind === "domain" ? "[data-id='" + target.id + "'].inputPaneDomain" :
+                         kind === "project" ? "[data-id='" + target.id + "'].inputPaneProject" :
+                         kind === "version" ? "[data-id='" + target.id + "'].inputPaneVersion" : null;
+        if (selector) {
+          const el = leftPane.querySelector(selector);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+      });
       tr.appendChild(tdLabel);
       dates.forEach(() => {
         const c = document.createElement("td");
