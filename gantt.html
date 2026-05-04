@@ -1428,11 +1428,16 @@
     bViewerSave.type = "button";
     bViewerSave.textContent = "Viewer保存";
     bViewerSave.addEventListener("click", () => { saveViewer(); });
+    const bNamedSave = document.createElement("button");
+    bNamedSave.type = "button";
+    bNamedSave.textContent = "名前付き保存";
+    bNamedSave.addEventListener("click", () => { saveNamedData(); });
     save.appendChild(bSave);
     save.appendChild(span);
     save.appendChild(bToggle);
     save.appendChild(bCommentMode);
     save.appendChild(bViewerSave);
+    save.appendChild(bNamedSave);
     topPane.appendChild(save);
 
     const ph = mkListbox("selPhase", d.phases.map((p) => ({ value: p, label: p })), {
@@ -3580,6 +3585,65 @@
     } catch (err) {
       console.error(err);
       alert("Viewer保存に失敗しました: " + (err && err.message ? err.message : String(err)));
+    }
+  }
+
+  function saveNamedData() {
+    const name = prompt("ガントチャートツール名を入力してください:", "");
+    if (!name || !name.trim()) return;
+    
+    // const safeName = name.trim().replace(/[^a-zA-Z0-9_-]/g, "_");
+    const safeName = name.trim();
+    const htmlFileName = "gantt_" + safeName + ".html";
+    const dataFileName = "gantt_data_" + safeName + ".js";
+    
+    try {
+      // 1. データファイルを保存
+      const jsText = serializeJs(cloneForSave(state.data));
+      const jsBlob = new Blob([jsText], { type: "application/javascript; charset=utf-8" });
+      const jsUrl = URL.createObjectURL(jsBlob);
+      
+      const jsLink = document.createElement("a");
+      jsLink.href = jsUrl;
+      jsLink.download = dataFileName;
+      document.body.appendChild(jsLink);
+      jsLink.click();
+      document.body.removeChild(jsLink);
+      
+      setTimeout(() => URL.revokeObjectURL(jsUrl), 100);
+      
+      // 2. HTMLファイルを保存（修正後）
+      topPane.innerHTML = "";
+      leftPane.innerHTML = "";
+      ganttVScroll.innerHTML = "";
+      let htmlText = document.documentElement.outerHTML;
+      
+      // gantt_data.jsの参照を gantt_data_xxx.js に変更
+      htmlText = htmlText.replace(
+        /src="gantt_data\.js"/g,
+        'src="' + dataFileName + '"'
+      );
+      
+      // fix
+      htmlText = "<!DOCTYPE html>\n" + htmlText;
+      
+      const htmlBlob = new Blob([htmlText], { type: "text/html; charset=utf-8" });
+      const htmlUrl = URL.createObjectURL(htmlBlob);
+      
+      const htmlLink = document.createElement("a");
+      htmlLink.href = htmlUrl;
+      htmlLink.download = htmlFileName;
+      document.body.appendChild(htmlLink);
+      htmlLink.click();
+      document.body.removeChild(htmlLink);
+      
+      setTimeout(() => URL.revokeObjectURL(htmlUrl), 100);
+      
+      alert("名前付き保存完了:\n" + htmlFileName + "\n" + dataFileName);
+      renderAll();
+    } catch (err) {
+      console.error(err);
+      alert("名前付き保存に失敗しました: " + (err && err.message ? err.message : String(err)));
     }
   }
 
