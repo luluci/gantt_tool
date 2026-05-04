@@ -907,9 +907,9 @@
 
   function cellVisualKeyFromCell(plan, c) {
     const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
-    if (!c || typeof c !== "object") return "off";
-    if (c.util == null || c.util.value == null) return "on:" + String(u0);
-    const u = Number(c.util.value);
+    if (!c || typeof c !== "object" || !c.util || typeof c.util !== "object") return "off";
+    if (c.util.value == null) return "on:" + String(u0);
+    const u = Number(c.util.value || u0);
     return "on:" + String(Number.isFinite(u) ? u : u0);
   }
 
@@ -928,7 +928,7 @@
     if (!td) return;
     const fill = td.querySelector(".fill");
     if (!fill) return;
-    const on = !!(dateCell && typeof dateCell === "object" && dateCell.util);
+    const on = !!(dateCell && typeof dateCell === "object" && dateCell.util && typeof dateCell.util === "object");
     const holType = holidayTypeForDate(ds, plan, state);
     if (on) {
       td.style.background = planBarColor(plan, state);
@@ -1039,7 +1039,7 @@
       if (!c || typeof c !== "object" || c.util == null) continue;
       const dMin = Math.abs(daysBetween(ds, minDate));
       const dMax = Math.abs(daysBetween(ds, maxDate));
-      if (dMin <= 7 || dMin > 14 || dMax <= 7 || dMax > 14) return true;
+      if (dMin <= 7 || dMax <= 7) return true;
     }
     return false;
   }
@@ -3088,6 +3088,7 @@
       if (dg && pln) {
         if (dg.mode === "click" && !dg.dragMoved && pln) {
           if (!cellIsOn(pln, ds)) {
+            // セルがオフ->オン:稼働率はプラン全体の稼働率をセット
             const util0 = pln.utilization == null ? 1 : Number(pln.utilization);
             let cell = pln.cells[ds];
             if (!cell || typeof cell !== "object" || cell === true) cell = {};
@@ -3155,14 +3156,28 @@
       }
       for (let di = startIdx; di <= endIdx; di++) {
         const k = dates[di];
-        if (dg.orig[k]) delete nextCells[k];
+        if (dg.orig[k]) {
+          if (!nextCells[k].util && !nextCells[k].comment) delete nextCells[k];
+          else if (nextCells[k].util) delete nextCells[k].util;
+        }
       }
       for (let i = 0; i < targets.length; i++) {
         const srcKey = dates[targets[i].src];
         const dstKey = dates[targets[i].dst];
         const cell = dg.orig[srcKey];
         if (!cell) continue;
-        nextCells[dstKey] = JSON.parse(JSON.stringify(cell));
+        //nextCells[dstKey] = JSON.parse(JSON.stringify(cell));
+        if (!cell.util || typeof cell.util !== "object" || cell.util === true) {
+          delete nextCells[dstKey].util;
+        } else {
+          if (!cell.util.value) {
+            if (!nextCells[dstKey] || typeof nextCells[dstKey] !== "object" || nextCells[dstKey] === true) nextCells[dstKey] = { util: {} };
+            else nextCells[dstKey].util = {};
+          } else {
+            if (!nextCells[dstKey] || typeof nextCells[dstKey] !== "object" || nextCells[dstKey] === true) nextCells[dstKey] = { util: { value: cell.util.value } };
+            else nextCells[dstKey].util = { value: cell.util.value };
+          }
+        }
       }
       changed = step !== 0;
     } else if (dg.mode === "resize-left") {
