@@ -22,6 +22,7 @@
       --holiday-sat: #e9f6ff;
       --holiday-sun: #ffeef0;
       --holiday-strong: #ffd7dc;
+      --specday-today: #fff3bf;
       --font: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
       --cal-head-row-h: 20px;
       --tree-head1-w: 250px;
@@ -723,6 +724,10 @@
   }
 
   function holidayTypeForDate(ymd, plan, state) {
+    // 特定日判定
+    // today
+    if (ymd === state.today) return "today";
+    // 休日判定：担当者休日 > 共通休日 > 土日
     const mem = state.data.members.find((m) => m.id === plan.ownerId);
     if (mem && Array.isArray(mem.holidays) && mem.holidays.includes(ymd)) return "member";
     if (state.data.commonHolidays.includes(ymd)) return "common";
@@ -730,6 +735,9 @@
   }
 
   function holidayTypeForHeaderDate(ymd, state) {
+    // today
+    if (ymd === state.today) return "today";
+    // 休日判定：共通休日 > 土日
     if (state.data.commonHolidays.includes(ymd)) return "common";
     return weekendTypeYMD(ymd);
   }
@@ -739,6 +747,7 @@
     if (type === "common") return "var(--holiday-strong)";
     if (type === "sunday") return "var(--holiday-sun)";
     if (type === "saturday") return "var(--holiday-sat)";
+    if (type === "today") return "var(--specday-today)";
     return "";
   }
 
@@ -1082,6 +1091,7 @@
     dirty: false,
     fileHandle: null,
     drag: null,
+    today: toDateString(new Date()),
   };
 
   function initData() {
