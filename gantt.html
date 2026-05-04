@@ -1424,10 +1424,15 @@
       if (state.commentDisplayMode === "always") state.commentContextKey = null;
       renderAll();
     });
+    const bViewerSave = document.createElement("button");
+    bViewerSave.type = "button";
+    bViewerSave.textContent = "Viewer保存";
+    bViewerSave.addEventListener("click", () => { saveViewer(); });
     save.appendChild(bSave);
     save.appendChild(span);
     save.appendChild(bToggle);
     save.appendChild(bCommentMode);
+    save.appendChild(bViewerSave);
     topPane.appendChild(save);
 
     const ph = mkListbox("selPhase", d.phases.map((p) => ({ value: p, label: p })), {
@@ -3135,7 +3140,7 @@
         const ch = card.offsetHeight;
         // 相対座標を絶対座標に変換
         const baseX = saved ? dotX + saved.x : dotX + 12;
-        const baseY = saved ? dotY + saved.y : dotY - 10;
+        const baseY = saved ? dotY + saved.y : dotY - 38;
         const pos = clampCommentPos(baseX, baseY, cw, ch);
         card.style.left = pos.x + "px";
         card.style.top = pos.y + "px";
@@ -3514,6 +3519,67 @@
     } catch (err) {
       console.error(err);
       alert("保存に失敗しました: " + (err && err.message ? err.message : String(err)));
+    }
+  }
+
+  function saveViewer() {
+    try {
+      // 現在のHTMLファイルの内容をテキストとして取得
+      topPane.innerHTML = "";
+      leftPane.innerHTML = "";
+      ganttVScroll.innerHTML = "";
+      let htmlText = document.documentElement.outerHTML;
+      
+      // gantt_data.jsを参照するscriptタグを削除（正規表現を使用）
+      htmlText = htmlText.replace(/<script[^>]*src[^>]*gantt_data\.js[^>]*><\/script>/gi, "");
+      
+      // データをJSON化
+      const jsonData = JSON.stringify(state.data, null, 2);
+      
+      // 埋め込むスクリプトコード（エスケープなし）
+      const dataScript = "window.__GANTT_DATA__ = " + jsonData + ";";
+      
+      // window.__GANTT_DATA__ 初期化スクリプトの直後に新しいスクリプトを挿入
+      const initScriptPattern = /window\.__GANTT_DATA__ = null;/;
+      
+      if (initScriptPattern.test(htmlText)) {
+        // 初期化スクリプトが見つかった場合、その直後に挿入
+        htmlText = htmlText.replace(
+          initScriptPattern,
+          (match) => dataScript + "\n"
+        );
+      } else {
+        // 見つからない場合は警告を表示して終了
+        alert("初期化スクリプトが見つかりませんでした。データは埋め込まれません。");
+        return;
+      }
+
+      // fix
+      htmlText = "<!DOCTYPE html>\n" + htmlText;
+      
+      // HTMLをBlob化
+      const blob = new Blob([htmlText], { type: "text/html; charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      
+      // ダウンロードリンクを作成
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "gantt_viewer.html";
+      
+      // ダウンロード実行
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // リソース解放
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+      
+      alert("Viewer保存完了: gantt_viewer.html");
+
+      renderAll();
+    } catch (err) {
+      console.error(err);
+      alert("Viewer保存に失敗しました: " + (err && err.message ? err.message : String(err)));
     }
   }
 
