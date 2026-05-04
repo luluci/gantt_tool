@@ -939,6 +939,27 @@
     return kind + ":" + String(target.id || "") + ":" + String(date || "");
   }
 
+  function getMilestoneComment(date) {
+    if (!state.data.milestones || !state.data.milestones[date]) return "";
+    return String(state.data.milestones[date].text || "");
+  }
+
+  function getMilestoneCommentPos(date) {
+    if (!state.data.milestones || !state.data.milestones[date]) return null;
+    const ms = state.data.milestones[date];
+    if (!ms.pos || typeof ms.pos !== "object") return null;
+    const x = Number(ms.pos.x);
+    const y = Number(ms.pos.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  }
+
+  function setMilestoneCommentPos(date, pos) {
+    if (!state.data.milestones) state.data.milestones = {};
+    if (!state.data.milestones[date]) state.data.milestones[date] = { text: "" };
+    state.data.milestones[date].pos = { x: Number(pos.x) || 0, y: Number(pos.y) || 0 };
+  }
+
   function defaultColorForPlan(plan, state) {
     const m = state.data.members.find((x) => x.id === plan.ownerId);
     return (m && m.defaultColor) || "#8ab4e6";
@@ -1251,7 +1272,14 @@
     bClose.addEventListener("click", closePopup);
     bSave.addEventListener("click", () => {
       if (!commentPopupTarget) return;
-      if (commentPopupDate) {
+      // Check if this is a milestone comment
+      if (typeof commentPopupTarget === "string" && commentPopupTarget.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // Milestone mode
+        const dateVal = commentPopupTarget;
+        if (!state.data.milestones) state.data.milestones = {};
+        if (!state.data.milestones[dateVal]) state.data.milestones[dateVal] = { text: "" };
+        state.data.milestones[dateVal].text = ta.value.trim();
+      } else if (commentPopupDate) {
         // Cell mode
         setCellComment(commentPopupTarget, commentPopupDate, ta.value);
       } else {
@@ -1273,7 +1301,14 @@
     });
     bDel.addEventListener("click", () => {
       if (!commentPopupTarget) return;
-      if (commentPopupDate) {
+      // Check if this is a milestone comment
+      if (typeof commentPopupTarget === "string" && commentPopupTarget.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // Milestone mode
+        const dateVal = commentPopupTarget;
+        if (state.data.milestones && state.data.milestones[dateVal]) {
+          delete state.data.milestones[dateVal];
+        }
+      } else if (commentPopupDate) {
         // Cell mode
         setCellComment(commentPopupTarget, commentPopupDate, "");
       } else {
@@ -1304,7 +1339,12 @@
     if (state.commentDisplayMode === "context") {
       state.commentContextKey = refKey || commentRefKey("plan", target, date);
     }
-    const comment = date ? getCellComment(target, date) : getNodeComment(target);
+    let comment = "";
+    if (refKey && refKey.startsWith("milestone:")) {
+      comment = getMilestoneComment(target);
+    } else {
+      comment = date ? getCellComment(target, date) : getNodeComment(target);
+    }
     commentPopupText.value = comment;
     const labelStr = date ? (label + " / " + date) : label;
     commentPopupMeta.textContent = labelStr;
@@ -2581,7 +2621,44 @@
         const th = document.createElement("th");
         th.className = "dayHead";
         th.textContent = textFn(ds);
+        th.style.position = "relative";
         if (bgFn) th.style.background = bgFn(ds) || "";
+        
+        // マイルストーン情報の確認
+        if (state.data.milestones && state.data.milestones[ds] && rowClass === "calDay") {
+          const key = "milestone:" + ds + ":";
+          const dot = document.createElement("span");
+          dot.style.position = "absolute";
+          dot.style.top = "2px";
+          dot.style.right = "2px";
+          dot.style.width = "8px";
+          dot.style.height = "8px";
+          // dot.style.borderRadius = "50%";
+          dot.style.transform = "rotate(45deg)";
+          dot.style.background = "#ff9800";
+          dot.style.cursor = "pointer";
+          dot.title = "マイルストーン";
+          dot.dataset.commentRef = key;
+          th.appendChild(dot);
+          commentRefs.push({ key, kind: "milestone", label: "マイルストーン", target: ds, date: ds, dot });
+          
+          // ドットのクリック時処理
+          dot.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openCommentPopup(ds, null, "マイルストーン: " + ds, dot, key);
+          });
+        }
+        
+        th.addEventListener("contextmenu", (e) => {
+          if (state.data.milestones && state.data.milestones[ds]) {
+            e.preventDefault();
+            e.stopPropagation();
+            const key = "milestone:" + ds + ":";
+            openCommentPopup(ds, null, "マイルストーン: " + ds, th, key);
+          }
+        });
+        
         tr.appendChild(th);
       });
       thead.appendChild(tr);
@@ -3034,7 +3111,12 @@
       commentLayer.style.width = stage.offsetWidth + "px";
       commentLayer.style.height = stage.offsetHeight + "px";
       refs.forEach((ref) => {
-        const text = ref.date ? getCellComment(ref.target, ref.date) : getNodeComment(ref.target);
+        let text;
+        if (ref.kind === "milestone") {
+          text = getMilestoneComment(ref.target);
+        } else {
+          text = ref.date ? getCellComment(ref.target, ref.date) : getNodeComment(ref.target);
+        }
         if (!text.trim()) return;
         const dotR = ref.dot.getBoundingClientRect();
         const dotX = dotR.left - rect.left + dotR.width / 2;
@@ -3043,7 +3125,12 @@
         card.className = ref.date ? "commentCard" : "nodeCommentCard";
         card.textContent = text;
         commentLayer.appendChild(card);
-        const saved = ref.date ? getCellCommentPos(ref.target, ref.date) : getNodeCommentPos(ref.target);
+        let saved;
+        if (ref.kind === "milestone") {
+          saved = getMilestoneCommentPos(ref.target);
+        } else {
+          saved = ref.date ? getCellCommentPos(ref.target, ref.date) : getNodeCommentPos(ref.target);
+        }
         const cw = card.offsetWidth;
         const ch = card.offsetHeight;
         // 相対座標を絶対座標に変換
@@ -3094,7 +3181,9 @@
             // 絶対座標を相対座標に変換して保存
             const relX = px - dotX;
             const relY = py - dotY;
-            if (ref.date) {
+            if (ref.kind === "milestone") {
+              setMilestoneCommentPos(ref.target, { x: relX, y: relY });
+            } else if (ref.date) {
               setCellCommentPos(ref.target, ref.date, { x: relX, y: relY });
             } else {
               setNodeCommentPos(ref.target, { x: relX, y: relY });
