@@ -131,9 +131,45 @@
       top: 0;
       z-index: var(--z-index-input-tool);
     }
+    .milestoneSection {
+      margin: 0;
+      padding: 6px;
+
+      & .milestoneForm {
+        display: grid;
+        grid-template-columns: 1fr auto;
+
+        & input[type="date"] {
+          grid-row: 2;
+          grid-column: 1;
+        }
+
+        & input[type="text"] {
+          grid-row: 1;
+          grid-column: 1 / span 2;
+
+          margin-bottom: 4px;
+          padding: 4px;
+        }
+
+        & button {
+          grid-row: 2;
+          grid-column: 2;
+
+          margin-left: 6px;
+          cursor: pointer;
+        }
+      }
+
+      & .milestoneList {
+        max-height: 150px;
+        overflow-y: auto;
+      }
+    }
     .inputPaneDomain {
       margin: 0;
       padding: 0;
+      z-index: 1;
     }
     .inputPaneDomainHeader {
       background: var(--bg-domain);
@@ -563,6 +599,7 @@
       members: [],
       statuses: [{ id: "st_open", name: "Open" }],
       commonHolidays: [],
+      milestones: {},
       domains: [],
     };
   }
@@ -600,6 +637,7 @@
     if (!Array.isArray(d.members)) d.members = [];
     if (!Array.isArray(d.statuses)) d.statuses = [{ id: "st_open", name: "Open" }];
     if (!Array.isArray(d.commonHolidays)) d.commonHolidays = [];
+    if (!d.milestones || typeof d.milestones !== "object") d.milestones = {};
     if (!Array.isArray(d.domains)) d.domains = [];
     d.domains.forEach((dom) => {
       dom.cells = dom.cells && typeof dom.cells === "object" ? dom.cells : {};
@@ -2195,20 +2233,20 @@
     }
 
 
+    // ツール全体用コンテナ
     // header要素 / domain追加ボタン
-    const head = document.createElement("div");
-    head.className = "inputPaneHeader inputPaneToolHeader";
+    const toolHeader = document.createElement("div");
+    toolHeader.className = "inputPaneHeader inputPaneToolHeader";
     // title
     const title = document.createElement("div");
     title.className = "inputPaneHeaderTitle";
     const head_caption = document.createElement("span");
-    // head_caption.className = "nameCell";
     head_caption.textContent = "情報入力パネル";
     title.appendChild(head_caption);
     // tool
-    const tool = document.createElement("div");
-    tool.className = "inputPaneHeaderTool";
-    tool.appendChild(addBtn("+ domain", () => {
+    const toolBtn = document.createElement("div");
+    toolBtn.className = "inputPaneHeaderTool";
+    toolBtn.appendChild(addBtn("+ domain", () => {
       const nd = { id: uid(), name: "新しい domain", cells: {}, projects: [] };
       d.domains.push(nd);
       markDirty(state, true);
@@ -2219,9 +2257,101 @@
       calcTreeSticky();
     }));
     // element構築
-    head.appendChild(title);
-    head.appendChild(tool);
-    leftPane.appendChild(head);
+    toolHeader.appendChild(title);
+    toolHeader.appendChild(toolBtn);
+    leftPane.appendChild(toolHeader);
+    
+    // マイルストーン入力欄
+    const milestoneSection = document.createElement("div");
+    milestoneSection.className = "milestoneSection";
+    
+    const msTitle = document.createElement("div");
+    msTitle.style.fontWeight = "bold";
+    msTitle.style.marginBottom = "6px";
+    msTitle.textContent = "マイルストーン設定";
+    milestoneSection.appendChild(msTitle);
+    
+    // マイルストーン入力フォーム
+    const msForm = document.createElement("div");
+    msForm.className = "milestoneForm";
+    const msDateInput = document.createElement("input");
+    msDateInput.type = "date";
+    msForm.appendChild(msDateInput);
+    const msTextInput = document.createElement("input");
+    msTextInput.type = "text";
+    msTextInput.placeholder = "テキスト";
+    msForm.appendChild(msTextInput);
+    const msAddBtn = document.createElement("button");
+    msAddBtn.textContent = "追加";
+    msAddBtn.addEventListener("click", () => {
+      const dateVal = msDateInput.value;
+      const textVal = msTextInput.value.trim();
+      if (!dateVal || !textVal) {
+        alert("日付とテキストを入力してください");
+        return;
+      }
+      if (!d.milestones) d.milestones = {};
+      d.milestones[dateVal] = { text: textVal };
+      markDirty(state, true);
+      msDateInput.value = "";
+      msTextInput.value = "";
+      renderMilestoneList();
+      renderGantt();
+    });
+    msForm.appendChild(msAddBtn);
+    milestoneSection.appendChild(msForm);
+    
+    // マイルストーン一覧表示
+    const msList = document.createElement("div");
+    msList.className = "milestoneList";
+    milestoneSection.appendChild(msList);
+    
+    const renderMilestoneList = () => {
+      msList.innerHTML = "";
+      if (!d.milestones || Object.keys(d.milestones).length === 0) {
+        const empty = document.createElement("div");
+        empty.style.color = "#999";
+        empty.style.fontSize = "12px";
+        empty.textContent = "マイルストーン未登録";
+        msList.appendChild(empty);
+        return;
+      }
+      Object.keys(d.milestones).sort().forEach((date) => {
+        const ms = d.milestones[date];
+        const msItem = document.createElement("div");
+        msItem.style.display = "flex";
+        msItem.style.justifyContent = "space-between";
+        msItem.style.alignItems = "center";
+        msItem.style.padding = "4px";
+        msItem.style.backgroundColor = "#f5f5f5";
+        msItem.style.marginBottom = "3px";
+        msItem.style.borderRadius = "3px";
+        
+        const msText = document.createElement("span");
+        msText.style.fontSize = "12px";
+        msText.innerHTML = "<strong>" + date + "</strong>: " + ms.text;
+        msItem.appendChild(msText);
+        
+        const msDelBtn = document.createElement("button");
+        msDelBtn.textContent = "×";
+        msDelBtn.style.padding = "0 4px";
+        msDelBtn.style.cursor = "pointer";
+        msDelBtn.style.backgroundColor = "#fff";
+        msDelBtn.style.border = "1px solid #ccc";
+        msDelBtn.addEventListener("click", () => {
+          if (!confirm(`マイルストーン "${date}: ${ms.text}" を削除してもよろしいですか？`)) return;
+          delete d.milestones[date];
+          markDirty(state, true);
+          renderMilestoneList();
+          renderGantt();
+        });
+        msItem.appendChild(msDelBtn);
+        msList.appendChild(msItem);
+      });
+    };
+    
+    renderMilestoneList();
+    leftPane.appendChild(milestoneSection);
 
     // domain / project / version / taskのツリー構造
     d.domains.forEach((dom) => {
@@ -2258,9 +2388,9 @@
   }
 
   function calcTreeSticky() {
-    // header要素の高さを取得
-    const head = leftPane.querySelector(".inputPaneToolHeader");
-    const inpPaneHeaderH = head.getBoundingClientRect().height;
+    // ツール全体コンテナの高さを取得
+    const inputPaneTool = leftPane.querySelector(".inputPaneToolHeader");
+    const inpPaneHeaderH = inputPaneTool ? inputPaneTool.getBoundingClientRect().height : 0;
     // domain要素
     const domains = leftPane.querySelectorAll(".inputPaneDomain");
     domains.forEach((dom) => {
