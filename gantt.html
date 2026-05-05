@@ -2732,7 +2732,8 @@
         bCommentMode.addEventListener("click", () => {
           state.commentDisplayMode = state.commentDisplayMode === "always" ? "context" : "always";
           if (state.commentDisplayMode === "always") state.commentContextKey = null;
-          renderAll();
+          // renderAll();
+          renderGantt();
         });
 
         // 左ペイン:情報入力パネル表示切替ボタン
