@@ -535,6 +535,7 @@
     .planRowH label { display: flex; flex-direction: column; gap: 1px; font-size: 10px; white-space: nowrap; }
     .planRowH input, .planRowH select { font-size: 11px; max-width: 9em; }
     .saveBar { display: flex; align-items: center; gap: 8px; }
+
     .actionBar {
       display: flex;
       flex-direction: column;
@@ -546,7 +547,37 @@
     .actionBar button {
       width: 100%;
       text-align: left;
+      word-break: break-all;
+      word-wrap: break-word;
+    }
+
+    .ganttToolBox {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      max-width: 100%;
+      margin: 0;
+      padding: 0 4px;
+
+      & .ganttToolSaveBlock {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        align-items: center;
+        margin-right: 8px;
+
+        & #ganttToolSaveStatus {
+          text-wrap: nowrap;
+        }
+      }
+    }
+    .ganttToolBox button {
+      width: auto;
+      text-align: left;
       white-space: nowrap;
+      font-size: 13px;
     }
   </style>
 </head>
@@ -1361,6 +1392,7 @@
   function renderTop() {
     const d = state.data;
     topPane.innerHTML = "";
+
     function mkListbox(id, items, opts) {
       const wrap = document.createElement("div");
       wrap.className = "topBlock";
@@ -1396,49 +1428,26 @@
       return { wrap, sel };
     }
 
-    const save = document.createElement("div");
-    save.className = "topBlock actionBar";
-    const bSave = document.createElement("button");
-    bSave.type = "button";
-    bSave.textContent = "保存 (Ctrl+S)";
-    bSave.addEventListener("click", () => { saveData(); });
-    const span = document.createElement("span");
-    span.className = "muted";
-    span.textContent = state.dirty ? "未保存の変更あり" : "保存済み";
-    const bToggle = document.createElement("button");
-    bToggle.type = "button";
-    bToggle.textContent = state.inputPaneVisible ? "入力ペインを隠す" : "入力ペインを表示";
-    bToggle.addEventListener("click", () => {
-      state.inputPaneVisible = !state.inputPaneVisible;
-      leftPane.classList.toggle("hidden", !state.inputPaneVisible);
-      resizer.classList.toggle("hidden", !state.inputPaneVisible);
-      renderTop();
-    });
-    const bCommentMode = document.createElement("button");
-    bCommentMode.type = "button";
-    bCommentMode.textContent = state.commentDisplayMode === "always"
-      ? "コメント: 常時表示"
-      : "コメント: 右クリック時";
-    bCommentMode.addEventListener("click", () => {
-      state.commentDisplayMode = state.commentDisplayMode === "always" ? "context" : "always";
-      if (state.commentDisplayMode === "always") state.commentContextKey = null;
-      renderAll();
-    });
+    // ツールボタンBOX
+    const toolBox = document.createElement("div");
+    toolBox.className = "topBlock actionBar";
+    const lab = document.createElement("label");
+    lab.textContent = "ツール";
+    // Viewer保存
     const bViewerSave = document.createElement("button");
     bViewerSave.type = "button";
-    bViewerSave.textContent = "Viewer保存";
+    bViewerSave.textContent = "データを埋め込んでViewerとして保存";
     bViewerSave.addEventListener("click", () => { saveViewer(); });
+    // 名前付き保存
     const bNamedSave = document.createElement("button");
     bNamedSave.type = "button";
-    bNamedSave.textContent = "名前付き保存";
+    bNamedSave.textContent = "ganttに名前を付けて保存";
     bNamedSave.addEventListener("click", () => { saveNamedData(); });
-    save.appendChild(bSave);
-    save.appendChild(span);
-    save.appendChild(bToggle);
-    save.appendChild(bCommentMode);
-    save.appendChild(bViewerSave);
-    save.appendChild(bNamedSave);
-    topPane.appendChild(save);
+    
+    toolBox.appendChild(lab);
+    toolBox.appendChild(bViewerSave);
+    toolBox.appendChild(bNamedSave);
+    topPane.appendChild(toolBox);
 
     const ph = mkListbox("selPhase", d.phases.map((p) => ({ value: p, label: p })), {
       label: "phase",
@@ -2623,10 +2632,10 @@
     function addDayHeaderRow(rowClass, textFn, bgFn) {
       const tr = document.createElement("tr");
       tr.className = rowClass;
-      const th1 = document.createElement("th");
-      th1.className = "treeHead";
-      th1.colSpan = 2;
-      tr.appendChild(th1);
+      // const th1 = document.createElement("th");
+      // th1.className = "treeHead";
+      // th1.colSpan = 2;
+      // tr.appendChild(th1);
       dates.forEach((ds) => {
         const th = document.createElement("th");
         th.className = "dayHead";
@@ -2677,10 +2686,59 @@
     function addGroupedHeaderRow(rowClass, textFn, bgFn) {
       const tr = document.createElement("tr");
       tr.className = rowClass;
-      const th1 = document.createElement("th");
-      th1.className = "treeHead";
-      th1.colSpan = 2;
-      tr.appendChild(th1);
+      if (rowClass === "calYear") {
+        const th1 = document.createElement("th");
+        th1.className = "treeHead";
+        th1.rowSpan = 4;
+        th1.colSpan = 2;
+
+        // 各種ツールボタン作成
+        const toolBox = document.createElement("div");
+        toolBox.className = "ganttToolBox";
+        // 保存ボタン
+        const saveBlock = document.createElement("div");
+        saveBlock.className = "ganttToolSaveBlock";
+        const bSave = document.createElement("button");
+        bSave.type = "button";
+        bSave.textContent = "保存 (Ctrl+S)";
+        bSave.addEventListener("click", () => { saveData(); });
+        const span = document.createElement("span");
+        span.id = "ganttToolSaveStatus";
+        span.className = "muted";
+        span.textContent = state.dirty ? "未保存の変更あり" : "保存済み";
+        saveBlock.appendChild(bSave);
+        saveBlock.appendChild(span);
+
+        // コメント表示モード切替ボタン
+        const bCommentMode = document.createElement("button");
+        bCommentMode.type = "button";
+        bCommentMode.textContent = state.commentDisplayMode === "always"
+          ? "コメント: 常時表示"
+          : "コメント: 右クリック時";
+        bCommentMode.addEventListener("click", () => {
+          state.commentDisplayMode = state.commentDisplayMode === "always" ? "context" : "always";
+          if (state.commentDisplayMode === "always") state.commentContextKey = null;
+          renderAll();
+        });
+
+        // 左ペイン:情報入力パネル表示切替ボタン
+        const bLeftPaneToggle = document.createElement("button");
+        bLeftPaneToggle.type = "button";
+        bLeftPaneToggle.textContent = state.inputPaneVisible ? "Close:左パネル" : "Open:左パネル";
+        bLeftPaneToggle.addEventListener("click", () => {
+          state.inputPaneVisible = !state.inputPaneVisible;
+          leftPane.classList.toggle("hidden", !state.inputPaneVisible);
+          resizer.classList.toggle("hidden", !state.inputPaneVisible);
+          bLeftPaneToggle.textContent = state.inputPaneVisible ? "Close:左パネル" : "Open:左パネル";
+        });
+
+        toolBox.appendChild(saveBlock);
+        toolBox.appendChild(bCommentMode);
+        toolBox.appendChild(bLeftPaneToggle);
+        th1.appendChild(toolBox);
+
+        tr.appendChild(th1);
+      }
       if (dates.length === 0) {
         thead.appendChild(tr);
         return;
