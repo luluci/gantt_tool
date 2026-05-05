@@ -8,7 +8,7 @@
     window.__GANTT_DATA__ = null;
     window.__GANTT_DATA_LOADED__ = false;
   </script>
-  <script src="gantt_data.js" onerror="window.__GANTT_DATA_LOADED__=false;"></script>
+  <script src="gantt.js" onerror="window.__GANTT_DATA_LOADED__=false;"></script>
   <script>window.__GANTT_DATA_LOADED__ = !!window.__GANTT_DATA__;</script>
   <style>
     :root {
@@ -3580,13 +3580,24 @@
 
   async function saveData() {
     // file:// で開いた場合、ブラウザによっては File System Access API が制限されることがある
+    // htmlファイル名からjsファイル名を生成する場合
+    // const htmlFileName = location.pathname.split('/').pop() || "gantt.html";
+    // const nameWithoutExt = htmlFileName.substring(0, htmlFileName.lastIndexOf('.')) || htmlFileName;
+    // const dataFileName = nameWithoutExt + '.js';
+
+    // domからsrc="gantt(<variable>).js"が指定されているscriptタグを検索してsrc属性の値を取得する
+    const ganttScriptTag = document.querySelector('script[src*="gantt"]');
+    const dataFileNameEnc = ganttScriptTag.src?.split('/').pop() || "gantt.js";
+    // パーセントエンコーディングをデコード
+    const dataFileName = decodeURIComponent(dataFileNameEnc);
+
     const text = serializeJs(cloneForSave(state.data));
     try {
       if (isWri() && window.wri && window.wri.io && window.wri.io.file && window.wri.io.file.SaveTo) {
-        window.wri.io.file.SaveTo("gantt_data.js", text);
+        window.wri.io.file.SaveTo(dataFileName, text);
       } else if (window.showSaveFilePicker) {
         const handle = state.fileHandle || await window.showSaveFilePicker({
-          suggestedName: "gantt_data.js",
+          suggestedName: dataFileName,
           types: [{ description: "JS", accept: { "application/javascript": [".js"] } }],
         });
         const w = await handle.createWritable();
@@ -3608,14 +3619,19 @@
 
   function saveViewer() {
     try {
+      // htmlファイル名からjsファイル名を生成する場合
+      const htmlFileName = location.pathname.split('/').pop() || "gantt.html";
+      const nameWithoutExt = htmlFileName.substring(0, htmlFileName.lastIndexOf('.')) || htmlFileName;
+      const dataFileName = decodeURIComponent(nameWithoutExt) + "_viewer.html";
+
       // 現在のHTMLファイルの内容をテキストとして取得
       topPane.innerHTML = "";
       leftPane.innerHTML = "";
       ganttVScroll.innerHTML = "";
       let htmlText = document.documentElement.outerHTML;
       
-      // gantt_data.jsを参照するscriptタグを削除（正規表現を使用）
-      // htmlText = htmlText.replace(/<script[^>]*src[^>]*gantt_data\.js[^>]*><\/script>/gi, "");
+      // gantt.jsを参照するscriptタグを削除（正規表現を使用）
+      htmlText = htmlText.replace(/<script[^>]*src[^>]*gantt(?:_.+)?\.js[^>]*><\/script>/gi, "");
       
       // データをJSON化
       const jsonData = JSON.stringify(state.data, null, 2);
@@ -3648,7 +3664,7 @@
       // ダウンロードリンクを作成
       const link = document.createElement("a");
       link.href = url;
-      link.download = "gantt_viewer.html";
+      link.download = dataFileName;
       
       // ダウンロード実行
       document.body.appendChild(link);
@@ -3658,7 +3674,7 @@
       // リソース解放
       setTimeout(() => URL.revokeObjectURL(url), 100);
       
-      alert("Viewer保存完了: gantt_viewer.html");
+      alert("Viewer保存完了: " + dataFileName);
 
       renderAll();
     } catch (err) {
@@ -3674,7 +3690,7 @@
     // const safeName = name.trim().replace(/[^a-zA-Z0-9_-]/g, "_");
     const safeName = name.trim();
     const htmlFileName = "gantt_" + safeName + ".html";
-    const dataFileName = "gantt_data_" + safeName + ".js";
+    const dataFileName = "gantt_" + safeName + ".js";
     
     try {
       // 1. データファイルを保存
@@ -3697,9 +3713,9 @@
       ganttVScroll.innerHTML = "";
       let htmlText = document.documentElement.outerHTML;
       
-      // gantt_data.jsの参照を gantt_data_xxx.js に変更
+      // gantt.jsの参照を gantt_xxx.js に変更
       htmlText = htmlText.replace(
-        /src="gantt_data(?:_\w+)?\.js"/g,
+        /src="gantt(?:_.+)?\.js"/g,
         'src="' + dataFileName + '"'
       );
       
