@@ -7,6 +7,7 @@
   <script>
     window.__GANTT_DATA__ = null;
     window.__GANTT_DATA_LOADED__ = false;
+    window.__GANTT_VIEWER_MODE__ = false;
   </script>
   <script src="gantt.js" onerror="window.__GANTT_DATA_LOADED__=false;"></script>
   <script>window.__GANTT_DATA_LOADED__ = !!window.__GANTT_DATA__;</script>
@@ -1200,6 +1201,11 @@
       ? window.__GANTT_DATA__
       : emptyData();
     state.data = normalizeLoaded(raw);
+    const viewerMode = window.__GANTT_VIEWER_MODE__ || false;
+    if (viewerMode) {
+      state.inputPaneVisible = false;
+      state.topPaneVisible = false;
+    }
     ensurePhaseKeys(state);
     eachPlan(state, (pl) => {
       recomputeAllPhaseFromCells(pl);
@@ -3637,7 +3643,7 @@
       const jsonData = JSON.stringify(state.data, null, 2);
       
       // 埋め込むスクリプトコード（エスケープなし）
-      const dataScript = "window.__GANTT_DATA__ = " + jsonData + ";";
+      const dataScript = "window.__GANTT_DATA__ = " + jsonData + ";\nwindow.__GANTT_VIEWER_MODE__ = true;";
       
       // window.__GANTT_DATA__ 初期化スクリプトの直後に新しいスクリプトを挿入
       const initScriptPattern = /window\.__GANTT_DATA__ = null;/;
@@ -3652,6 +3658,15 @@
         // 見つからない場合は警告を表示して終了
         alert("初期化スクリプトが見つかりませんでした。データは埋め込まれません。");
         return;
+      }
+
+      const initViewModePattern = /window\.__GANTT_VIEWER_MODE__ = false;/;
+      if (initViewModePattern.test(htmlText)) {
+        // 初期化が見つかった場合削除
+        htmlText = htmlText.replace(
+          initViewModePattern,
+          (match) => ""
+        );
       }
 
       // fix
@@ -3758,6 +3773,8 @@
       state.topPaneHeight = Math.min(Math.max(state.topPaneHeight, minTop), maxTop);
       document.documentElement.style.setProperty("--topH", state.topPaneHeight + "px");
     }
+    topPane.classList.toggle("hidden", !state.topPaneVisible);
+    hResizer.classList.toggle("hidden", !state.topPaneVisible);
     leftPane.classList.toggle("hidden", !state.inputPaneVisible);
     resizer.classList.toggle("hidden", !state.inputPaneVisible);
     renderTop();
