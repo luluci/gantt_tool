@@ -1386,7 +1386,7 @@
     commentPopup.style.top = top + "px";
     commentPopup.style.display = "block";
     commentPopupText.focus();
-    if (state.commentDisplayMode === "context") renderGantt();
+    //if (state.commentDisplayMode === "context") renderGantt();
   }
 
   function renderTop() {
@@ -2661,22 +2661,17 @@
           th.appendChild(dot);
           commentRefs.push({ key, kind: "milestone", label: "マイルストーン", target: ds, date: ds, dot });
           
-          // ドットのクリック時処理
-          dot.addEventListener("click", (e) => {
+          // コメント表示イベント
+          const onCommentClick = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            openCommentPopup(ds, null, "マイルストーン: " + ds, dot, key);
-          });
+            openCommentPopup(ds, null, "マイルストーン: " + ds, th, key);
+          };
+          // ドットのクリック時処理
+          dot.addEventListener("click", onCommentClick);
+          th.addEventListener("contextmenu", onCommentClick);
         }
         
-        th.addEventListener("contextmenu", (e) => {
-          if (state.data.milestones && state.data.milestones[ds]) {
-            e.preventDefault();
-            e.stopPropagation();
-            const key = "milestone:" + ds + ":";
-            openCommentPopup(ds, null, "マイルストーン: " + ds, th, key);
-          }
-        });
         
         tr.appendChild(th);
       });
@@ -2944,6 +2939,7 @@
         const key = commentRefKey(kind, target, ds);
         const c = tr.children[startIdx + i];
         c.style.position = "relative";
+
         if (getCellComment(target, ds).trim()) {
           const dot = document.createElement("span");
           dot.style.position = "absolute";
