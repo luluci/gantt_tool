@@ -1448,11 +1448,13 @@
     const bViewerSave = document.createElement("button");
     bViewerSave.type = "button";
     bViewerSave.textContent = "データを埋め込んでViewerとして保存";
+    bViewerSave.title = "jsを読み込む代わりに現在のデータをJSON形式でファイルに埋め込んで保存する。\nhtml単体で閲覧可能なViewerとして保存される。";
     bViewerSave.addEventListener("click", () => { saveViewer(); });
     // 名前付き保存
     const bNamedSave = document.createElement("button");
     bNamedSave.type = "button";
-    bNamedSave.textContent = "ganttに名前を付けて保存";
+    bNamedSave.textContent = "ganttに別名を付けて保存";
+    bNamedSave.title = "gantt_data_(任意入力).jsからデータを読み出すようgantt.htmlを変更して保存する。";
     bNamedSave.addEventListener("click", () => { saveNamedData(); });
     
     toolBox.appendChild(lab);
@@ -3613,7 +3615,7 @@
       let htmlText = document.documentElement.outerHTML;
       
       // gantt_data.jsを参照するscriptタグを削除（正規表現を使用）
-      htmlText = htmlText.replace(/<script[^>]*src[^>]*gantt_data\.js[^>]*><\/script>/gi, "");
+      // htmlText = htmlText.replace(/<script[^>]*src[^>]*gantt_data\.js[^>]*><\/script>/gi, "");
       
       // データをJSON化
       const jsonData = JSON.stringify(state.data, null, 2);
@@ -3697,7 +3699,7 @@
       
       // gantt_data.jsの参照を gantt_data_xxx.js に変更
       htmlText = htmlText.replace(
-        /src="gantt_data\.js"/g,
+        /src="gantt_data(?:_\w+)?\.js"/g,
         'src="' + dataFileName + '"'
       );
       
