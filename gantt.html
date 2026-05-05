@@ -57,6 +57,9 @@
       flex: 0 0 var(--topH, auto); background: var(--bg-top); border-bottom: 1px solid var(--border);
       padding: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; overflow: auto;
     }
+    #topPane.hidden {
+      display: none;
+    }
     .topBlock { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
     .topBlock label { font-weight: 600; font-size: 11px; color: #333; }
     .listbox {
@@ -77,12 +80,17 @@
       flex: 0 0 6px; cursor: row-resize; background: #e0e0e0;
       border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
     }
+    #hResizer.hidden {
+      display: none;
+    }
     #bottomPane { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
     #leftPane {
       flex: 0 0 var(--leftW, 340px); min-width: 200px; max-width: 70%;
       border-right: 1px solid var(--border); overflow: auto; background: #fafafa;
     }
-    #leftPane.hidden { display: none; }
+    #leftPane.hidden {
+      display: none;
+    }
     #leftPane button.deleteBtn {
       white-space: nowrap;
       font-size: 12px;
@@ -298,7 +306,9 @@
       flex: 0 0 6px; cursor: col-resize; background: #e0e0e0; border-left: 1px solid var(--border);
       border-right: 1px solid var(--border);
     }
-    #resizer.hidden { display: none; }
+    #resizer.hidden {
+      display: none;
+    }
     #rightWrap { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
     #ganttVScroll { flex: 1 1 auto; overflow: auto; min-height: 0; }
     .ganttStage { position: relative; width: max-content; min-width: 100%; }
@@ -1175,6 +1185,7 @@
     commentDisplayMode: "always",
     commentContextKey: null,
     inputPaneVisible: true,
+    topPaneVisible: true,
     manhoursExpanded: true,
     caseExpanded: {}, // { caseId: boolean }
     domainExpanded: {}, // { caseId::domainId: boolean }
@@ -2727,9 +2738,21 @@
           bLeftPaneToggle.textContent = state.inputPaneVisible ? "Close:左パネル" : "Open:左パネル";
         });
 
+        // 上ペイン:データ入力パネル表示切替ボタン
+        const bTopPaneToggle = document.createElement("button");
+        bTopPaneToggle.type = "button";
+        bTopPaneToggle.textContent = state.topPaneVisible ? "Close:上パネル" : "Open:上パネル";
+        bTopPaneToggle.addEventListener("click", () => {
+          state.topPaneVisible = !state.topPaneVisible;
+          topPane.classList.toggle("hidden", !state.topPaneVisible);
+          hResizer.classList.toggle("hidden", !state.topPaneVisible);
+          bTopPaneToggle.textContent = state.topPaneVisible ? "Close:上パネル" : "Open:上パネル";
+        });
+
         toolBox.appendChild(saveBlock);
         toolBox.appendChild(bCommentMode);
         toolBox.appendChild(bLeftPaneToggle);
+        toolBox.appendChild(bTopPaneToggle);
         th1.appendChild(toolBox);
 
         tr.appendChild(th1);
