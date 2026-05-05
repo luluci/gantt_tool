@@ -1212,6 +1212,17 @@
       pl.plannedEnd = computePlannedEnd(pl, state);
     });
     markDirty(state, false);
+
+    ganttVScroll.addEventListener("scrollend", () => {
+      if (milestoneLayer != null && milestoneLineLayer != null && state.commentDisplayMode === "always") {
+        const scrollTop = ganttVScroll.scrollTop + "px";
+        const commentHeight = (commentLayer.offsetHeight - parseFloat(scrollTop)) + "px";
+        milestoneLayer.style.top = scrollTop;
+        milestoneLayer.style.height = commentHeight;
+        milestoneLineLayer.style.top = scrollTop;
+        milestoneLineLayer.style.height = commentHeight;
+      }
+    });
   }
 
   const topPane = document.getElementById("topPane");
@@ -1226,6 +1237,9 @@
   let commentPopupMeta = null;
   let commentPopupTarget = null;
   let commentPopupDate = "";
+  let commentLayer = null;
+  let milestoneLayer = null;
+  let milestoneLineLayer = null;
 
   function scrollLeftPlanIntoView(planId) {
     if (!planId) return;
@@ -3181,10 +3195,16 @@
     stage.appendChild(tbl);
     const lineLayer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     lineLayer.setAttribute("class", "commentLineLayer");
-    const commentLayer = document.createElement("div");
+    commentLayer = document.createElement("div");
     commentLayer.className = "commentLayer";
+    milestoneLineLayer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    milestoneLineLayer.setAttribute("class", "milestoneLineLayer commentLineLayer");
+    milestoneLayer = document.createElement("div");
+    milestoneLayer.className = "milestoneLayer commentLayer";
     stage.appendChild(lineLayer);
     stage.appendChild(commentLayer);
+    stage.appendChild(milestoneLineLayer);
+    stage.appendChild(milestoneLayer);
 
     function clampCommentPos(x, y, cardW, cardH) {
       const maxX = Math.max(0, stage.offsetWidth - cardW - 4);
@@ -3206,6 +3226,12 @@
       lineLayer.style.height = stage.offsetHeight + "px";
       commentLayer.style.width = stage.offsetWidth + "px";
       commentLayer.style.height = stage.offsetHeight + "px";
+      milestoneLineLayer.setAttribute("width", String(stage.offsetWidth));
+      milestoneLineLayer.setAttribute("height", String(stage.offsetHeight));
+      milestoneLineLayer.style.width = stage.offsetWidth + "px";
+      milestoneLineLayer.style.height = stage.offsetHeight + "px";
+      milestoneLayer.style.width = stage.offsetWidth + "px";
+      milestoneLayer.style.height = stage.offsetHeight + "px";
       refs.forEach((ref) => {
         let text;
         if (ref.kind === "milestone") {
@@ -3220,11 +3246,12 @@
         const card = document.createElement("div");
         card.className = ref.date ? "commentCard" : "nodeCommentCard";
         card.textContent = text;
-        commentLayer.appendChild(card);
         let saved;
         if (ref.kind === "milestone") {
+          milestoneLayer.appendChild(card);
           saved = getMilestoneCommentPos(ref.target);
         } else {
+          commentLayer.appendChild(card);
           saved = ref.date ? getCellCommentPos(ref.target, ref.date) : getNodeCommentPos(ref.target);
         }
         const cw = card.offsetWidth;
@@ -3237,10 +3264,15 @@
         card.style.top = pos.y + "px";
 
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("stroke", "#b0293a");
         line.setAttribute("stroke-width", "1.2");
         line.setAttribute("stroke-opacity", "0.9");
-        lineLayer.appendChild(line);
+        if (ref.kind === "milestone") {
+          line.setAttribute("stroke", "#ff9800");
+          milestoneLineLayer.appendChild(line);
+        } else {
+          line.setAttribute("stroke", "#b0293a");
+          lineLayer.appendChild(line);
+        }
         const updateLine = () => {
           const cx = parseFloat(card.style.left) || 0;
           const cy = parseFloat(card.style.top) || 0;
