@@ -1171,6 +1171,10 @@
   function markDirty(state, v) {
     state.dirty = v;
   }
+  function updateToolSaveStatus() {
+    const el = document.getElementById("ganttToolSaveStatus");
+    if (el) el.textContent = state.dirty ? "変更あり" : "保存済み";
+  }
 
   function isWri() {
     return /wri\/1\.0/i.test(navigator.userAgent || "");
@@ -2036,6 +2040,11 @@
       box.addEventListener("focusin", selectPlanInLeftPane);
       box.addEventListener("click", selectPlanInLeftPane);
 
+      // 終了日dom更新ハンドラ
+      const updatePlannedEndDom = () => {
+        const inp = fields.querySelector('input[data-field="plannedEnd"]');
+        if (inp) inp.value = pl.plannedEnd || "";
+      };
       // 開始日と終了日をまとめたテーブル
       {
         const dateTable = document.createElement("table");
@@ -2063,13 +2072,15 @@
         const plannedStartCell = document.createElement("td");
         const inpStart = document.createElement("input");
         inpStart.type = "date";
+        inpStart.readOnly = true;   // 現状、直接入力はさせない。ガントのセルから入力する想定。
         inpStart.dataset.field = "plannedStart";
         inpStart.value = pl.plannedStart || "";
         inpStart.addEventListener("change", () => {
           pl.plannedStart = inpStart.value;
           pl.plannedEnd = computePlannedEnd(pl, state);
+          updatePlannedEndDom();
           markDirty(state, true);
-          renderAll();
+          renderGantt();
         });
         plannedStartCell.appendChild(inpStart);
         plannedRow.appendChild(plannedStartCell);
@@ -2167,9 +2178,7 @@
         } else {
           inpP.addEventListener("change", () => {
             syncPhaseTotalsFromField(state, pl, ph, "planned", inpP.value);
-            pl.plannedEnd = computePlannedEnd(pl, state);
-            markDirty(state, true);
-            renderAll();
+            updateToolSaveStatus(true);
           });
         }
         tdP.appendChild(inpP);
@@ -2183,7 +2192,8 @@
         inpA.addEventListener("change", () => {
           syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
           markDirty(state, true);
-          renderAll();
+          // renderAll();
+          renderGantt();
         });
         tdA.appendChild(inpA);
         actualRow.appendChild(tdA);
@@ -2733,7 +2743,7 @@
         const span = document.createElement("span");
         span.id = "ganttToolSaveStatus";
         span.className = "muted";
-        span.textContent = state.dirty ? "未保存の変更あり" : "保存済み";
+        span.textContent = state.dirty ? "変更あり" : "保存済み";
         saveBlock.appendChild(bSave);
         saveBlock.appendChild(span);
 
