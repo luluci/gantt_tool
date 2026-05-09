@@ -497,20 +497,31 @@
     }
 
     .daycell {
-      width: 28px; height: 22px; padding: 0; text-align: center; font-size: 12px; vertical-align: top;
+      width: 28px;
+      padding: 0 !important;
+      text-align: center;
+      font-size: 12px;
+      vertical-align: top;
     }
-    .daycell.dark { background: var(--bg-darkcol); color: #bbb;  }
-    .daycell .fill { display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0; }
+    .daycell.dark {
+      background: var(--bg-darkcol); color: #bbb;
+    }
+    .daycell .fill {
+      display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0;
+    }
 
     .dpvRow td {
+      width: 28px;
+      height: 22px;
+      padding: 0;
       height: 25px;
+      border: none !important;
+      position: relative;
     }
     .dpvRow td.treeHead {
       font-weight: 700;
       border: none;
-    }
-    .dpvRow td.daycell {
-      border: none;
+      cursor: pointer;
     }
     .dpv-domain td { background: var(--bg-domain); border-color: var(--bg-domain); color: var(--color-domain); }
     .dpv-project td { background: var(--bg-project); border-color: var(--bg-project); color: var(--color-project); }
@@ -526,14 +537,32 @@
       z-index: var(--z-index-body-caption) !important;
       border-color: inherit;
     }
+
+    table.gantt tbody tr.planRow.isPlanning {
+      height: 14px;
+    }
+    table.gantt tbody tr.actualRow.isPlanning {
+      height: 14px;
+    }
+    table.gantt tbody tr.planRow.isActual {
+      height: 18px;
+    }
+    table.gantt tbody tr.actualRow.isActual {
+      height: 18px;
+    }
+
     .planRow th,
-    .planRow td {
+    .planRow td,
+    .actualRow th,
+    .actualRow td {
       position: sticky;
       z-index: var(--z-index-body);
       border-color: transparent !important;
     }
     .planRow th::before,
-    .planRow td::before {
+    .planRow td::before,
+    .actualRow th::before,
+    .actualRow td::before {
       content: "";
       position: absolute;
       inset: -1px -1px 0 0;
@@ -546,9 +575,6 @@
 
     .planRow.selected td.daycell {
       box-shadow: inset 0 2px 0 var(--accent), inset 0 -3px 0 var(--accent);
-    }
-    .daycell .actual {
-      height: 3px; margin-top: 1px; background: var(--actual-bar); border-radius: 1px;
     }
     .nameCell { cursor: pointer; }
     .nameCell textarea  {
@@ -3104,7 +3130,6 @@
       tdLabel.colSpan = 2;
       tdLabel.className = "treeHead";
       tdLabel.textContent = label;
-      tdLabel.style.cursor = "pointer";
       tdLabel.addEventListener("click", () => {
         const selector = kind === "domain" ? "[data-id='" + target.id + "'].inputPaneDomain" :
                          kind === "project" ? "[data-id='" + target.id + "'].inputPaneProject" :
@@ -3119,14 +3144,13 @@
       tr.appendChild(tdLabel);
       dates.forEach(() => {
         const c = document.createElement("td");
-        c.className = "daycell";
         tr.appendChild(c);
       });
       const startIdx = 1;
       dates.forEach((ds, i) => {
         const key = commentRefKey(kind, target, ds);
         const c = tr.children[startIdx + i];
-        c.style.position = "relative";
+        // c.style.position = "relative";
 
         if (getCellComment(target, ds).trim()) {
           const dot = document.createElement("span");
@@ -3335,10 +3359,14 @@
 
         if (pl.isPlanOrActual) {
           // Planモード
-          tr_plan.style.height = "14px";
-          tr_act.style.height = "14px";
+          tr_plan.classList.add("isPlanning");
+          tr_act.classList.add("isPlanning");
+          // tr_plan.style.height = "14px";
+          // tr_act.style.height = "14px";
         } else {
           // Actualモード
+          tr_plan.classList.add("isActual");
+          tr_act.classList.add("isActual");
         }
         tr_plan.appendChild(tPlan);
         appendPlanDayCells(tr_plan, tr_act, dom, pr, vr, pl);
