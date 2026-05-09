@@ -104,7 +104,7 @@
     }
     .inputPaneHeader {
       display: grid;
-      grid-template-columns: 1fr 100px;
+      grid-template-columns: 1fr 115px;
 
       font-weight: 600;
       margin: 0;
@@ -124,10 +124,17 @@
         justify-content: flex-end;
         align-items: center;
         flex-wrap: wrap;
-        gap: 10px;
+        gap: 14px;
 
         & button {
           white-space: nowrap;
+        }
+
+        & .isPlanMode {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          flex-wrap: nowrap;
         }
       }
     }
@@ -2117,9 +2124,10 @@
       // tool
       const tool = document.createElement("div");
       tool.className = "inputPaneHeaderTool";
+      tool.title = "ON:予定入力モード/OFF:実績入力モード";
       // IsPlanOrActual切り替えチェックボックス
       const isPlanning = document.createElement("div");
-      isPlanning.className = "isPlanning";
+      isPlanning.className = "isPlanMode";
       const isPlanningCheck = document.createElement("input");
       isPlanningCheck.type = "checkbox";
       isPlanningCheck.className = "planActualToggle";
@@ -2132,7 +2140,7 @@
       });
       isPlanning.appendChild(isPlanningCheck);
       const isPlanningLabel = document.createElement("span");
-      isPlanningLabel.textContent = "IsPlan";
+      isPlanningLabel.textContent = "PlanMode";
       isPlanning.appendChild(isPlanningLabel);
       tool.appendChild(isPlanning);
       // 削除ボタン
