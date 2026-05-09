@@ -124,7 +124,7 @@
         justify-content: flex-end;
         align-items: center;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 10px;
 
         & button {
           white-space: nowrap;
@@ -392,11 +392,15 @@
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
     }
-    table.gantt thead th.treeHead, table.gantt thead th.treeHead2 {
-      z-index: var(--z-index-header-caption) !important;
-    }
-    .dayHead {
-      width: 28px; height: var(--cal-head-row-h); font-size: 10px; line-height: 1.1; text-align: center; background: #eaeaea; font-weight: 500; padding: 1px 0;
+    table.gantt thead th.dayHead {
+      width: 28px;
+      height: var(--cal-head-row-h);
+      font-size: 10px;
+      line-height: 1.1;
+      text-align: center;
+      background: #eaeaea;
+      font-weight: 500;
+      padding: 1px 0;
     }
     table.gantt thead tr.calYear th.dayHead,
     table.gantt thead tr.calMonth th.dayHead {
@@ -412,10 +416,20 @@
       z-index: var(--z-index-header-calendar) !important;
     }
   
-    .manhoursRow td.treeHead {
-      font-weight: bold;
+    table.gantt thead tr.calYear th.calendarHead {
+      position: sticky;
+      left: 0;
+      background: #eee;
+      z-index: var(--z-index-header-caption) !important;
     }
-    .manhoursRow td.daycell {
+    table.gantt thead .manhoursRow th.manhoursHead {
+      position: sticky;
+      left: 0;
+      z-index: var(--z-index-header-caption) !important;
+      font-weight: bold;
+      text-align: left;
+    }
+    .manhoursRow td.manhourCell {
       background: #f5f5f5;
       text-align: center;
       font-size: 11px;
@@ -426,7 +440,7 @@
       border-right: 1px solid var(--border);
       border-left: 1px solid var(--border);
     }
-    .manhoursHeader td.treeHead {
+    .manhoursHeader th.manhoursHead {
       background: var(--bg-header);
       border-left: 1px solid var(--border);
       color: #fff;
@@ -434,37 +448,39 @@
       cursor: pointer;
       z-index: var(--z-index-header-caption) !important;
     }
-    .manhoursHeader td.daycell {
+    .manhoursHeader td.manhourCell {
       background: var(--bg-header) !important;
       border-color: var(--bg-header) !important;
       color: #fff;
       font-weight: bold;
       cursor: pointer;
     }
-    .manhoursCaseDetailRow td.treeHead {
+    .manhoursCaseDetailRow th.manhoursHead {
       background: #e4d7bf;
       border-left: 1px solid var(--border);
       z-index: var(--z-index-header-caption) !important;
+      cursor: pointer;
     }
-    .manhoursCaseDetailRow td.daycell {
+    .manhoursCaseDetailRow td.manhourCell {
       background: #e4d7bf !important;
       height: var(--cal-head-row-h);
     }
-    .manhoursDomainDetailRow td.treeHead {
+    .manhoursDomainDetailRow th.manhoursHead {
       background: #d7e4bf;
       border-left: 1px solid var(--border);
       z-index: var(--z-index-header-caption) !important;
+      cursor: pointer;
     }
-    .manhoursDomainDetailRow td.daycell {
+    .manhoursDomainDetailRow td.manhourCell {
       background: #d7e4bf;
       height: var(--cal-head-row-h);
     }
-    .manhoursMemberDetailRow td.treeHead {
+    .manhoursMemberDetailRow th.manhoursHead {
       background: #bfd7e4;
       border-left: 1px solid var(--border);
       z-index: var(--z-index-header-caption) !important;
     }
-    .manhoursMemberDetailRow td.daycell {
+    .manhoursMemberDetailRow td.manhourCell {
       background: #bfd7e4 !important;
       height: var(--cal-head-row-h);
     }
@@ -697,6 +713,7 @@
               pl.phaseHours = pl.phaseHours || {};
               pl.cells = pl.cells || {};
               pl.comment = pl.comment || {};
+              if (pl.isPlanOrActual == null) pl.isPlanOrActual = true;  // true:plan, false:actual
               if (pl.statusId === undefined) pl.statusId = d.statuses[0] && d.statuses[0].id || null;
               migratePlanCellsToDayModel(pl);
               d.phases.forEach((ph) => {
@@ -974,7 +991,7 @@
     if (!c.comment || typeof c.comment !== "object") c.comment = { text:"" };
     if (val.trim()) c.comment.text = val;
     else delete c.comment;
-    cells[date] = c;
+    if (Object.keys(c).length !== 0) cells[date] = c;
   }
 
   function commentRefKey(kind, target, date) {
@@ -1067,7 +1084,91 @@
     return touched;
   }
 
-  function refreshManhoursRowsDom() {
+  function totalManhoursByCaseDomainMember(state, dates) {
+    // date/case/domain/memberの階層で人工集計
+    let totalHours = {};
+    (dates || []).forEach((ds) => {
+      state.data.domains.forEach((dom) => {
+        (dom.projects || []).forEach((pr) => {
+          (pr.versions || []).forEach((vr) => {
+            (vr.tasks || []).forEach((tk) => {
+              (tk.plans || []).forEach((pl) => {
+                // フィルタケア
+                if (!planMatchesCaseFilter(pl)) return;
+                // 集計
+                const mh = dayHoursAll(pl, ds);
+                // 稼働日でなければスキップ
+                if (mh == 0) return;
+                if (!totalHours[ds]) totalHours[ds] = { total: 0, detail: {} };
+                const dateNode = totalHours[ds];
+                // case集計
+                if (!dateNode.detail[pl.caseId]) dateNode.detail[pl.caseId] = { total: 0, detail: {} };
+                const caseNode = dateNode.detail[pl.caseId];
+                caseNode.total += mh;
+                // domain集計
+                if (!caseNode.detail[dom.id]) caseNode.detail[dom.id] = { total: 0, detail: {} };
+                const domainNode = caseNode.detail[dom.id];
+                domainNode.total += mh;
+                // member集計
+                if (!domainNode.detail[pl.ownerId]) domainNode.detail[pl.ownerId] = { total: 0 };
+                const memberNode = domainNode.detail[pl.ownerId];
+                memberNode.total += mh;
+              });
+            });
+          });
+        });
+      });
+    });
+    return totalHours;
+  }
+
+  function refreshManhoursRowsDom(dates) {
+    // case/domain/member ごとの工数集計行を更新
+    const totalHours = totalManhoursByCaseDomainMember(state, dates);
+    const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
+    rows.forEach((row) => {
+      const kind = row.dataset.mhKind || "";
+      const caseId = row.dataset.caseId || "";
+      const domainId = row.dataset.domainId || "";
+      const memberId = row.dataset.memberId || "";
+      row.querySelectorAll("td.manhourCell[data-date]").forEach((td) => {
+        const ds = td.dataset.date || "";
+        if (!ds) return;
+        if (dates && !dates.includes(ds)) return;
+        let mh = 0;
+        if (totalHours[ds]) {
+          const dateNode = totalHours[ds];
+          if (kind === "case") {
+            const caseNode = dateNode.detail[caseId];
+            if (caseNode) mh = caseNode.total;
+          } else if (kind === "domain") {
+            const caseNode = dateNode.detail[caseId];
+            if (caseNode) {
+              const domainNode = caseNode.detail[domainId];
+              if (domainNode) mh = domainNode.total;
+            }
+          } else if (kind === "member") {
+            const caseNode = dateNode.detail[caseId];
+            if (caseNode) {
+              const domainNode = caseNode.detail[domainId];
+              if (domainNode) {
+                const memberNode = domainNode.detail[memberId];
+                if (memberNode) mh = memberNode.total;
+              }
+            }
+          } else {
+            mh = dateNode.total;
+          }
+        }
+        td.textContent = (mh / 8).toFixed(1);
+        td.title = mh + "hr";
+      });
+    });
+  }
+
+  function refreshManhoursRowsDomOld() {
+    // case/domain/member ごとの工数集計行を更新
+    // 
     const computeTotalHoursBy = (dateStr, filterFn) => {
       let totalHours = 0;
       state.data.domains.forEach((dom) => {
@@ -1089,11 +1190,14 @@
       const kind = row.dataset.mhKind || "";
       const caseId = row.dataset.caseId || "";
       const domainId = row.dataset.domainId || "";
-      row.querySelectorAll("td.daycell[data-date]").forEach((td) => {
+      const memberId = row.dataset.memberId || "";
+      row.querySelectorAll("td.manhourCell[data-date]").forEach((td) => {
         const ds = td.dataset.date || "";
         if (!ds) return;
         let totalHours = 0;
-        if (kind === "case") {
+        if (kind === "member") {
+          totalHours = computeTotalHoursBy(ds, (pl) => pl.caseId === caseId);
+        } else if (kind === "case") {
           totalHours = computeTotalHoursBy(ds, (pl) => pl.caseId === caseId);
         } else if (kind === "domain") {
           totalHours = computeTotalHoursBy(ds, (pl, dom) => pl.caseId === caseId && dom.id === domainId);
@@ -1777,6 +1881,7 @@
       const pl = {
         id: uid(),
         name: "新しい plan",
+        isPlanOrActual: true,
         plannedStart: toDateString(new Date()),
         plannedEnd: "",
         actualStart: "",
@@ -1933,7 +2038,7 @@
         renderGantt();
         // dom要素追加
         const te = makeTaskNode(vr, nt);
-        te.appendChild(makePlanNode(pl0));
+        te.appendChild(makePlanNode(nt, pl0));
         ve.appendChild(te);
         calcTreeSticky();
       }));
@@ -1975,7 +2080,7 @@
         tk.plans.push(pl);
         markDirty(state, true);
         renderGantt();
-        te.appendChild(makePlanNode(pl));
+        te.appendChild(makePlanNode(tk, pl));
         calcTreeSticky();
       }));
       tool.appendChild(addDeleteBtn(() => {
@@ -2012,6 +2117,25 @@
       // tool
       const tool = document.createElement("div");
       tool.className = "inputPaneHeaderTool";
+      // IsPlanOrActual切り替えチェックボックス
+      const isPlanning = document.createElement("div");
+      isPlanning.className = "isPlanning";
+      const isPlanningCheck = document.createElement("input");
+      isPlanningCheck.type = "checkbox";
+      isPlanningCheck.className = "planActualToggle";
+      isPlanningCheck.checked = pl.isPlanOrActual;
+      isPlanningCheck.title = "ON:予定入力モード/OFF:実績入力モード";
+      isPlanningCheck.addEventListener("change", () => {
+        pl.isPlanOrActual = isPlanningCheck.checked;
+        markDirty(state, true);
+        renderGantt();
+      });
+      isPlanning.appendChild(isPlanningCheck);
+      const isPlanningLabel = document.createElement("span");
+      isPlanningLabel.textContent = "IsPlan";
+      isPlanning.appendChild(isPlanningLabel);
+      tool.appendChild(isPlanning);
+      // 削除ボタン
       tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${pl.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
@@ -2227,13 +2351,15 @@
             delete utilObj.value;
           }
         });
+        const targetDates = [];
         Object.keys(pl.cells || {}).forEach((ds) => {
           updatePlanCellDomByData(pl, ds, pl.cells[ds], null);
+          targetDates.push(ds);
         });
         recomputeAllPhaseFromCells(pl);
         pl.plannedEnd = computePlannedEnd(pl, state);
         syncLeftPanePlanSummaryDom(pl.id);
-        refreshManhoursRowsDom();
+        refreshManhoursRowsDom(targetDates);
         markDirty(state, true);
       });
       addLabeled(rowSelect, "稼働率", inpUtil);
@@ -2726,7 +2852,7 @@
       tr.className = rowClass;
       if (rowClass === "calYear") {
         const th1 = document.createElement("th");
-        th1.className = "treeHead";
+        th1.className = "calendarHead";
         th1.rowSpan = 4;
         th1.colSpan = 2;
 
@@ -2826,8 +2952,8 @@
     function createManhoursRow(label, filterFn, depth = 0) {
       const tr = document.createElement("tr");
       tr.className = "treeRow manhoursRow";
-      const labelCell = document.createElement("td");
-      labelCell.className = "treeHead";
+      const labelCell = document.createElement("th");
+      labelCell.className = "manhoursHead";
       labelCell.colSpan = 2;
       labelCell.style.paddingLeft = (8 + depth * 10) + "px";
       labelCell.textContent = label;
@@ -2835,7 +2961,7 @@
       
       dates.forEach((ds) => {
         const td = document.createElement("td");
-        td.className = "daycell";
+        td.className = "manhourCell";
         td.dataset.date = ds;
         
         // 当日の総工数を計算
@@ -2869,8 +2995,8 @@
     const totalManhoursRow = document.createElement("tr");
     totalManhoursRow.className = "treeRow manhoursRow manhoursHeader";
     //totalManhoursRow.dataset.mhKind = "total";
-    const totalLabelCell = document.createElement("td");
-    totalLabelCell.className = "treeHead";
+    const totalLabelCell = document.createElement("th");
+    totalLabelCell.className = "manhoursHead";
     totalLabelCell.colSpan = 2;
     // totalLabelCell.style.userSelect = "none";
     totalLabelCell.textContent = "総合人工 (" + (state.manhoursExpanded ? "▼" : "▶") + ")";
@@ -2878,7 +3004,7 @@
     
     //dates.forEach((ds) => {
       const td = document.createElement("td");
-      td.className = "daycell";
+      td.className = "manhourCell";
       // td.dataset.date = ds;
       td.colSpan = dates.length;
       td.textContent = "";
@@ -2904,9 +3030,8 @@
       if (!state.manhoursExpanded) caseRow.style.display = "none";
       
       // Case行のラベルセルをクリック可能にする
-      const caseLabelCell = caseRow.querySelector(".treeHead");
+      const caseLabelCell = caseRow.querySelector(".manhoursHead");
       if (caseLabelCell) {
-        caseLabelCell.style.cursor = "pointer";
         caseLabelCell.addEventListener("click", (e) => {
           e.stopPropagation();
           state.caseExpanded[cse.id] = !isCaseExpanded;
@@ -2936,9 +3061,8 @@
         if (!state.manhoursExpanded || !isCaseExpanded) domRow.style.display = "none";
         
         // Domain行のラベルセルをクリック可能にする
-        const domLabelCell = domRow.querySelector(".treeHead");
+        const domLabelCell = domRow.querySelector(".manhoursHead");
         if (domLabelCell) {
-          domLabelCell.style.cursor = "pointer";
           domLabelCell.addEventListener("click", (e) => {
             e.stopPropagation();
             state.domainExpanded[domRowKey] = !isDomainExpanded;
@@ -3018,38 +3142,46 @@
       tbody.appendChild(tr);
     }
 
-    function appendPlanDayCells(tr, dom, pr, vr, pl) {
+    function appendPlanDayCells(tr_plan, tr_act, dom, pr, vr, pl) {
       dates.forEach((ds) => {
         const key = commentRefKey("plan", pl, ds);
-        const td = document.createElement("td");
-        td.className = "daycell";
-        td.style.position = "relative";
+        const td_plan = document.createElement("td");
+        td_plan.className = "daycell";
+        td_plan.style.position = "relative";
+        const td_act = document.createElement("td");
+        td_act.className = "daycell";
+
+
         const hrs = dayHoursAll(pl, ds);
         const cap = hrs > 0 ? hrs : 8 * (pl.utilization || 1);
         const base = planBarColor(pl, state);
         const holType = holidayTypeForDate(ds, pl, state);
-        const fill = document.createElement("span");
-        fill.className = "fill";
-        if (hrs > 0) {
-          td.style.background = base;
-          fill.style.background = "transparent";
-        } else {
-          td.style.background = holidayBgColor(holType) || "";
-          fill.style.background = "";
+        const makeFill = () => {
+          const fill = document.createElement("span");
+          fill.className = "fill";
+          if (hrs > 0) {
+            td_plan.style.background = base;
+            fill.style.background = "transparent";
+          } else {
+            td_plan.style.background = holidayBgColor(holType) || "";
+            fill.style.background = "";
+          }
+          const uShow = cellIsOn(pl, ds) && Math.abs(effectiveCellUtil(pl, ds) - (pl.utilization || 1)) > 1e-5;
+          fill.textContent = uShow ? String(effectiveCellUtil(pl, ds)) : "";
+          fill.style.color = hrs > 0 ? "#111" : "";
+          // fill.style.fontSize = "9px";
+          fill.style.lineHeight = "20px";
+          return fill;
         }
-        const uShow = cellIsOn(pl, ds) && Math.abs(effectiveCellUtil(pl, ds) - (pl.utilization || 1)) > 1e-5;
-        fill.textContent = uShow ? String(effectiveCellUtil(pl, ds)) : "";
-        fill.style.color = hrs > 0 ? "#111" : "";
-        // fill.style.fontSize = "9px";
-        fill.style.lineHeight = "20px";
-
-        const actH = actualHoursOnDate(pl, ds, state);
-        const actBar = document.createElement("div");
-        actBar.className = "actual";
-        actBar.style.opacity = actH > 0 ? "1" : "0";
-
-        td.appendChild(fill);
-        td.appendChild(actBar);
+        const fillPlan = makeFill();
+        td_plan.appendChild(fillPlan);
+        if (pl.isPlanOrActual) {
+          // Planモード
+          td_plan.rowSpan = 2;
+        } else {
+          // Actualモード
+        }
+        
         if (getCellComment(pl, ds).trim()) {
           const dot = document.createElement("span");
           dot.style.position = "absolute";
@@ -3060,30 +3192,37 @@
           dot.style.borderRadius = "50%";
           dot.style.background = "#b0293a";
           dot.dataset.commentRef = key;
-          td.appendChild(dot);
+          td_plan.appendChild(dot);
           commentRefs.push({ key, kind: "plan", label: pl.name, target: pl, date: ds, dot });
         }
 
-        td.dataset.date = ds;
-        td.dataset.planId = pl.id;
+        td_plan.dataset.date = ds;
+        td_plan.dataset.planId = pl.id;
 
-        td.addEventListener("mousemove", (e) => {
-          const r = td.getBoundingClientRect();
+        td_plan.addEventListener("mousemove", (e) => {
+          const r = td_plan.getBoundingClientRect();
           const localX = e.clientX - r.left;
           const m = planCellInteractionMode(pl, ds, localX, r.width, dates);
-          td.style.cursor = cursorForPlanCellMode(m) || "cell";
+          td_plan.style.cursor = cursorForPlanCellMode(m) || "cell";
         });
-        td.addEventListener("mouseleave", () => {
-          td.style.cursor = "";
+        td_plan.addEventListener("mouseleave", () => {
+          td_plan.style.cursor = "";
         });
 
-        td.addEventListener("contextmenu", (e) => {
+        td_plan.addEventListener("contextmenu", (e) => {
           e.preventDefault();
           e.stopPropagation();
-          openCommentPopup(pl, ds, "plan:" + pl.name, td, key);
+          openCommentPopup(pl, ds, "plan:" + pl.name, td_plan, key);
         });
-        td.addEventListener("pointerdown", (e) => onCellPointerDown(e, pl, ds, dates));
-        tr.appendChild(td);
+        td_plan.addEventListener("pointerdown", (e) => onCellPointerDown(e, pl, ds, dates));
+        tr_plan.appendChild(td_plan);
+
+        if (pl.isPlanOrActual) {
+          // Planモード
+        } else {
+          // Actualモード
+          tr_act.appendChild(td_act);
+        }
       });
     }
 
@@ -3111,13 +3250,16 @@
         return;
       }
       vis.forEach((pl, i) => {
-        const tr = document.createElement("tr");
-        tr.className = "planRow" + (state.selectedPlanId === pl.id ? " selected" : "");
-        tr.dataset.planId = pl.id;
+        const tr_plan = document.createElement("tr");
+        const tr_act = document.createElement("tr");
+        tr_plan.className = "planRow" + (state.selectedPlanId === pl.id ? " selected" : "");
+        tr_plan.dataset.planId = pl.id;
+        tr_act.className = "actualRow";
+        tr_act.dataset.planId = pl.id;
         if (i === 0) {
           const t2 = document.createElement("td");
           t2.className = "treeHead nameCell";
-          t2.rowSpan = n;
+          t2.rowSpan = n * 2;
           // t2.textContent = tk.name;
           t2.innerHTML = tk.name;
           
@@ -3145,11 +3287,12 @@
             e.stopPropagation();
             openCommentPopup(tk, null, "Task: " + tk.name, t2);
           });
-          tr.appendChild(t2);
+          tr_plan.appendChild(t2);
         }
         const tPlan = document.createElement("td");
         tPlan.className = "treeHead2 nameCell";
         tPlan.textContent = pl.name;
+        tPlan.rowSpan = 2;
         
         // Plan のコメント表示
         if (getNodeComment(pl).trim()) {
@@ -3181,9 +3324,18 @@
           e.stopPropagation();
           openCommentPopup(pl, null, "Plan: " + pl.name, tPlan);
         });
-        tr.appendChild(tPlan);
-        appendPlanDayCells(tr, dom, pr, vr, pl);
-        tbody.appendChild(tr);
+
+        if (pl.isPlanOrActual) {
+          // Planモード
+          tr_plan.style.height = "14px";
+          tr_act.style.height = "14px";
+        } else {
+          // Actualモード
+        }
+        tr_plan.appendChild(tPlan);
+        appendPlanDayCells(tr_plan, tr_act, dom, pr, vr, pl);
+        tbody.appendChild(tr_plan);
+        tbody.appendChild(tr_act);
       });
     }
 
@@ -3392,13 +3544,16 @@
           delete cell.util.value;
         }
       }
+      if (Object.keys(cell).length === 0) {
+        delete plan.cells[ds];
+      }
       spn.contentEditable = "false";
       updatePlanCellDomByData(plan, ds, plan.cells[ds] || cell, null);
       recomputeAllPhaseFromCells(plan);
       plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
       syncLeftPanePlanSummaryDom(plan.id);
-      refreshManhoursRowsDom();
+      refreshManhoursRowsDom([ds]);
     };
     spn.addEventListener("blur", onChange);
     // Enterキーで確定、Escキーでキャンセル
@@ -3424,6 +3579,7 @@
     const next = seq[(Math.max(0, idx) + 1) % seq.length];
     if (Math.abs(next - u0) < 1e-5) {
       if (typeof cell === "object") delete cell.util;
+      if (Object.keys(cell).length === 0) delete plan.cells[ds];
     } else if (typeof cell === "object") cell.util = next;
     markDirty(state, true);
   }
@@ -3484,7 +3640,7 @@
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
             syncLeftPanePlanSummaryDom(pln.id);
-            refreshManhoursRowsDom();
+            refreshManhoursRowsDom([ds]);
             if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
         } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
@@ -3493,6 +3649,13 @@
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
         } else if (dg.changed) {
+          // ドラッグ変更範囲日時を配列として作成
+          const changedDates = [];
+          const mergedDates = new Set([...Object.keys(pln.cells || {}), ...Object.keys(dg.draftCells || {})]);
+          mergedDates.forEach((ds) => {
+            changedDates.push(ds);
+          });
+
           pln.cells = dg.draftCells;
           applyPlanCellsDomDiff(pln, dg.orig, pln.cells, dg.frozenDates || [], dg.cellDomCache);
           const minCellDate = earliestInputCellDate(pln);
@@ -3501,7 +3664,7 @@
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
           syncLeftPanePlanSummaryDom(pln.id);
-          refreshManhoursRowsDom();
+          refreshManhoursRowsDom(changedDates);
           if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
         }
       }
@@ -3539,8 +3702,12 @@
       for (let di = startIdx; di <= endIdx; di++) {
         const k = dates[di];
         if (dg.orig[k]) {
-          if (!nextCells[k].util && !nextCells[k].comment) delete nextCells[k];
-          else if (nextCells[k].util) delete nextCells[k].util;
+          if (nextCells[k].util) {
+            delete nextCells[k].util;
+          }
+          if (Object.keys(nextCells[k]).length === 0) {
+            delete nextCells[k];
+          }
         }
       }
       for (let i = 0; i < targets.length; i++) {
@@ -3551,6 +3718,9 @@
         //nextCells[dstKey] = JSON.parse(JSON.stringify(cell));
         if (!cell.util || typeof cell.util !== "object" || cell.util === true) {
           delete nextCells[dstKey].util;
+          if (Object.keys(nextCells[dstKey]).length === 0) {
+            delete nextCells[dstKey];
+          }
         } else {
           if (!cell.util.value) {
             if (!nextCells[dstKey] || typeof nextCells[dstKey] !== "object" || nextCells[dstKey] === true) nextCells[dstKey] = { util: {} };
