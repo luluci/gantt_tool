@@ -481,6 +481,7 @@
       left: 0;
       background: #eee;
       z-index: var(--z-index-header-caption) !important;
+      padding: 0;
     }
     table.gantt thead .manhoursRow th.manhoursHead {
       position: sticky;
@@ -722,7 +723,7 @@
       align-items: center;
       max-width: 100%;
       margin: 0;
-      padding: 0 4px;
+      padding: 4px;
 
       & .ganttToolSaveBlock {
         display: flex;
@@ -740,7 +741,7 @@
       width: auto;
       text-align: left;
       white-space: nowrap;
-      font-size: 13px;
+      font-size: 12px;
     }
   </style>
 </head>
@@ -1564,6 +1565,11 @@ const csLoaded = () => {
     if (!row) return;
     const target = row.querySelector("td.treeHead2") || row;
     target.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  function scrollGanttToElem(elem) {
+    if (!elem) return;
+    elem.scrollIntoView({ block: "center", inline: "center" });
   }
 
   function applySelectedPlanDom(planId) {
@@ -3028,28 +3034,31 @@ const csLoaded = () => {
         th.className = "dayHead";
         th.textContent = textFn(ds);
         if (bgFn) th.style.background = bgFn(ds) || "";
-        
-        // マイルストーン情報の確認
-        if (state.data.milestones && state.data.milestones[ds] && rowClass === "calDay") {
-          const key = "milestone:" + ds + ":";
-          const dot = document.createElement("span");
-          dot.className = "milestoneDot";
-          dot.title = "マイルストーン";
-          dot.dataset.commentRef = key;
-          th.appendChild(dot);
-          commentRefs.push({ key, kind: "milestone", label: "マイルストーン", target: ds, date: ds, dot });
-          
-          // コメント表示イベント
-          const onCommentClick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openCommentPopup(ds, null, "マイルストーン: " + ds, th, key);
-          };
-          // ドットのクリック時処理
-          dot.addEventListener("click", onCommentClick);
-          th.addEventListener("contextmenu", onCommentClick);
+        if (rowClass === "calDay") {
+          if (ds === state.today) {
+            th.classList.add("today");
+          }
+          // マイルストーン情報の確認
+          if (state.data.milestones && state.data.milestones[ds]) {
+            const key = "milestone:" + ds + ":";
+            const dot = document.createElement("span");
+            dot.className = "milestoneDot";
+            dot.title = "マイルストーン";
+            dot.dataset.commentRef = key;
+            th.appendChild(dot);
+            commentRefs.push({ key, kind: "milestone", label: "マイルストーン", target: ds, date: ds, dot });
+            
+            // コメント表示イベント
+            const onCommentClick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openCommentPopup(ds, null, "マイルストーン: " + ds, th, key);
+            };
+            // ドットのクリック時処理
+            dot.addEventListener("click", onCommentClick);
+            th.addEventListener("contextmenu", onCommentClick);
+          }
         }
-        
         
         tr.appendChild(th);
       });
@@ -3117,10 +3126,20 @@ const csLoaded = () => {
           bTopPaneToggle.textContent = state.topPaneVisible ? "Close:上パネル" : "Open:上パネル";
         });
 
+        // 今日の位置を表示
+        const bJumpToday = document.createElement("button");
+        bJumpToday.type = "button";
+        bJumpToday.textContent = "Jump:今日";
+        bJumpToday.addEventListener("click", () => {
+          const today = document.querySelector("table.gantt tr.calDay .today");
+          scrollGanttToElem(today);
+        });
+
         toolBox.appendChild(saveBlock);
         toolBox.appendChild(bCommentMode);
         toolBox.appendChild(bLeftPaneToggle);
         toolBox.appendChild(bTopPaneToggle);
+        toolBox.appendChild(bJumpToday);
         th1.appendChild(toolBox);
 
         tr.appendChild(th1);
