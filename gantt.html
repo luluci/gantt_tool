@@ -695,17 +695,18 @@
     };
   }
 
-  function migratePlanCellsToDayModel(pl) {
+  function migrateCellsToDayModel(cells, utilization) {
     // 互換性処理
-    const u0 = pl.utilization == null ? 1 : Number(pl.utilization);
-    Object.keys(pl.cells || {}).forEach((ds) => {
-      const c = pl.cells[ds];
+    const src = cells && typeof cells === "object" ? cells : {};
+    const u0 = utilization == null ? 1 : Number(utilization);
+    Object.keys(src).forEach((ds) => {
+      const c = src[ds];
       if (c == null || c === true) {
-        if (c === true) pl.cells[ds] = {};
+        if (c === true) src[ds] = {};
         return;
       }
       if (typeof c !== "object") {
-        delete pl.cells[ds];
+        delete src[ds];
         return;
       }
       // 稼働率
@@ -716,8 +717,16 @@
           c.util = { value:u0 };
         }
       }
-      pl.cells[ds] = c;
+      src[ds] = c;
     });
+    return src;
+  }
+
+  function migratePlanCellsToDayModel(pl) {
+    // 互換性処理
+    const u0 = pl.utilization == null ? 1 : Number(pl.utilization);
+    pl.cells = migrateCellsToDayModel(pl.cells, u0);
+    pl.actualCells = migrateCellsToDayModel(pl.actualCells, u0);
   }
 
   function normalizeLoaded(raw) {
@@ -745,6 +754,7 @@
               pl.utilization = pl.utilization == null ? 1 : Number(pl.utilization);
               pl.phaseHours = pl.phaseHours || {};
               pl.cells = pl.cells || {};
+              pl.actualCells = pl.actualCells || {};
               pl.comment = pl.comment || {};
               if (pl.isPlanOrActual == null) pl.isPlanOrActual = true;  // true:plan, false:actual
               if (pl.statusId === undefined) pl.statusId = d.statuses[0] && d.statuses[0].id || null;
@@ -796,8 +806,12 @@
     );
   }
 
-  function cellIsOn(plan, dateStr) {
-    const c = plan.cells[dateStr];
+  function getCellsByKind(plan, cellKind) {
+    return cellKind === "actual" ? (plan.actualCells || (plan.actualCells = {})) : (plan.cells || (plan.cells = {}));
+  }
+
+  function cellIsOn(plan, dateStr, cellKind) {
+    const c = getCellsByKind(plan, cellKind)[dateStr];
     if (c == null) return false;
     if (typeof c !== "object") return false;
     const rawKeys = Object.keys(c);
@@ -806,35 +820,41 @@
     return true;
   }
 
-  function effectiveCellUtil(plan, dateStr) {
-    const c = plan.cells[dateStr];
+  function effectiveCellUtil(plan, dateStr, cellKind) {
+    const c = getCellsByKind(plan, cellKind)[dateStr];
     const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
-    if (!cellIsOn(plan, dateStr)) return u0;
+    if (!cellIsOn(plan, dateStr, cellKind)) return u0;
     if (c && typeof c === "object" && c.util != null) return Number(c.util.value) || u0;
     return u0;
   }
 
   /** チャート表示・all 集計用（1日=8hr×稼働率） */
-  function dayHoursAll(plan, dateStr) {
-    return cellIsOn(plan, dateStr) ? 8 * effectiveCellUtil(plan, dateStr) : 0;
+  function dayHoursAll(plan, dateStr, cellKind) {
+    return cellIsOn(plan, dateStr, cellKind) ? 8 * effectiveCellUtil(plan, dateStr, cellKind) : 0;
   }
 
   function displayedHoursForDate(plan, dateStr) {
-    return dayHoursAll(plan, dateStr);
+    return dayHoursAll(plan, dateStr, "plan");
   }
 
   function hasDisplayedHours(plan, dateStr) {
-    return cellIsOn(plan, dateStr);
+    return cellIsOn(plan, dateStr, "plan");
   }
 
   function recomputeAllPhaseFromCells(plan) {
-    const keys = Object.keys(plan.cells || {});
-    let sumAll = 0;
-    keys.forEach((ds) => {
-      sumAll += dayHoursAll(plan, ds);
+    const planKeys = Object.keys(plan.cells || {});
+    const actualKeys = Object.keys(plan.actualCells || {});
+    let sumPlanned = 0;
+    let sumActual = 0;
+    planKeys.forEach((ds) => {
+      sumPlanned += dayHoursAll(plan, ds, "plan");
+    });
+    actualKeys.forEach((ds) => {
+      sumActual += dayHoursAll(plan, ds, "actual");
     });
     if (!plan.phaseHours.all) plan.phaseHours.all = { planned: 0, actual: 0 };
-    if (keys.length > 0) plan.phaseHours.all.planned = sumAll;
+    plan.phaseHours.all.planned = sumPlanned;
+    plan.phaseHours.all.actual = sumActual;
   }
 
   function isWeekendYMD(ymd) {
@@ -1076,15 +1096,18 @@
   function buildPlanCellDomCache(planId, dates) {
     const cache = new Map();
     dates.forEach((ds) => {
-      const td = ganttVScroll.querySelector('td.daycell[data-plan-id="' + planId + '"][data-date="' + ds + '"]');
-      if (td) cache.set(planId + "|" + ds, td);
+      const tdPlan = ganttVScroll.querySelector('td.daycell[data-plan-id="' + planId + '"][data-date="' + ds + '"][data-cell-kind="plan"]');
+      if (tdPlan) cache.set(planId + "|plan|" + ds, tdPlan);
+      const tdAct = ganttVScroll.querySelector('td.daycell[data-plan-id="' + planId + '"][data-date="' + ds + '"][data-cell-kind="actual"]');
+      if (tdAct) cache.set(planId + "|actual|" + ds, tdAct);
     });
     return cache;
   }
 
-  function updatePlanCellDomByData(plan, ds, dateCell, cache) {
-    const key = plan.id + "|" + ds;
-    const td = (cache && cache.get(key)) || ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"]');
+  function updatePlanCellDomByData(plan, ds, dateCell, cache, cellKind) {
+    const kind = cellKind || "plan";
+    const key = plan.id + "|" + kind + "|" + ds;
+    const td = (cache && cache.get(key)) || ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"][data-cell-kind="' + kind + '"]');
     if (!td) return;
     const fill = td.querySelector(".fill");
     if (!fill) return;
@@ -1105,14 +1128,14 @@
     fill.style.color = "";
   }
 
-  function applyPlanCellsDomDiff(plan, prevCells, nextCells, dates, cache) {
+  function applyPlanCellsDomDiff(plan, prevCells, nextCells, dates, cache, cellKind) {
     const touched = new Set();
     dates.forEach((ds) => {
       const prevKey = cellVisualKeyFromCell(plan, prevCells ? prevCells[ds] : null);
       const nextKey = cellVisualKeyFromCell(plan, nextCells ? nextCells[ds] : null);
       if (prevKey === nextKey) return;
       touched.add(ds);
-      updatePlanCellDomByData(plan, ds, nextCells ? nextCells[ds] : null, cache);
+      updatePlanCellDomByData(plan, ds, nextCells ? nextCells[ds] : null, cache, cellKind);
     });
     return touched;
   }
@@ -1253,6 +1276,10 @@
     eachPlan(state, (pl) => {
       Object.keys(pl.cells || {}).forEach((ds) => {
         if (!cellIsOn(pl, ds)) return;
+        bump(ds);
+      });
+      Object.keys(pl.actualCells || {}).forEach((ds) => {
+        if (!cellIsOn(pl, ds, "actual")) return;
         bump(ds);
       });
     });
@@ -1926,6 +1953,7 @@
         statusId: d.statuses[0] && d.statuses[0].id || null,
         phaseHours: {},
         cells: {},
+        actualCells: {},
         comment: {},
       };
       d.phases.forEach((ph) => { pl.phaseHours[ph] = { planned: 0, actual: 0 }; });
@@ -2385,9 +2413,25 @@
             delete utilObj.value;
           }
         });
+        Object.keys(pl.actualCells || {}).forEach((ds) => {
+          const cell = pl.actualCells[ds];
+          if (!cell || typeof cell !== "object") return;
+          const utilObj = cell.util;
+          if (!utilObj || typeof utilObj !== "object") return;
+          if (!Object.prototype.hasOwnProperty.call(utilObj, "value")) return;
+          const explicit = Number(utilObj.value);
+          if (!Number.isFinite(explicit)) return;
+          if (Math.abs(explicit - nextUtil) <= 1e-5) {
+            delete utilObj.value;
+          }
+        });
         const targetDates = [];
         Object.keys(pl.cells || {}).forEach((ds) => {
           updatePlanCellDomByData(pl, ds, pl.cells[ds], null);
+          targetDates.push(ds);
+        });
+        Object.keys(pl.actualCells || {}).forEach((ds) => {
+          updatePlanCellDomByData(pl, ds, pl.actualCells[ds], null, "actual");
           targetDates.push(ds);
         });
         recomputeAllPhaseFromCells(pl);
@@ -2707,14 +2751,14 @@
     return state.caseFilter.includes(cs.id || "");
   }
 
-  function contiguousBlock(plan, dateStr, state, datesOverride) {
+  function contiguousBlock(plan, dateStr, state, datesOverride, cellKind) {
     const dates = datesOverride || getDateRange(state);
     const idx = dates.indexOf(dateStr);
     if (idx < 0) return { start: dateStr, end: dateStr };
     let s = idx, e = idx;
     let li = s - 1;
     while (li >= 0) {
-      if (hasDisplayedHours(plan, dates[li])) {
+      if (cellIsOn(plan, dates[li], cellKind)) {
         s = li;
         li--;
         continue;
@@ -2727,7 +2771,7 @@
     }
     let ri = e + 1;
     while (ri < dates.length) {
-      if (hasDisplayedHours(plan, dates[ri])) {
+      if (cellIsOn(plan, dates[ri], cellKind)) {
         e = ri;
         ri++;
         continue;
@@ -2741,9 +2785,9 @@
     return { start: dates[s], end: dates[e], startIdx: s, endIdx: e };
   }
 
-  function planCellInteractionMode(pl, dateStr, localX, cellWidth, datesOverride) {
-    const blk = contiguousBlock(pl, dateStr, state, datesOverride);
-    if (!hasDisplayedHours(pl, dateStr)) return "click";
+  function planCellInteractionMode(pl, dateStr, localX, cellWidth, datesOverride, cellKind) {
+    const blk = contiguousBlock(pl, dateStr, state, datesOverride, cellKind);
+    if (!cellIsOn(pl, dateStr, cellKind)) return "click";
     if (dateStr === blk.start && localX < PLAN_CELL_EDGE_PX) return "resize-left";
     if (dateStr === blk.end && localX > cellWidth - PLAN_CELL_EDGE_PX) return "resize-right";
     return "move";
@@ -3183,37 +3227,30 @@
         const td_act = document.createElement("td");
         td_act.className = "daycell";
 
-
-        const hrs = dayHoursAll(pl, ds);
-        const cap = hrs > 0 ? hrs : 8 * (pl.utilization || 1);
-        const base = planBarColor(pl, state);
-        const holType = holidayTypeForDate(ds, pl, state);
-        const makeFill = () => {
+        const makeFill = (cellKind, td) => {
+          const hrs = dayHoursAll(pl, ds, cellKind);
+          const base = planBarColor(pl, state);
+          const holType = holidayTypeForDate(ds, pl, state);
           const fill = document.createElement("span");
           fill.className = "fill";
           if (hrs > 0) {
-            td_plan.style.background = base;
+            td.style.background = base;
             fill.style.background = "transparent";
           } else {
-            td_plan.style.background = holidayBgColor(holType) || "";
+            td.style.background = holidayBgColor(holType) || "";
             fill.style.background = "";
           }
-          const uShow = cellIsOn(pl, ds) && Math.abs(effectiveCellUtil(pl, ds) - (pl.utilization || 1)) > 1e-5;
-          fill.textContent = uShow ? String(effectiveCellUtil(pl, ds)) : "";
+          const uShow = cellIsOn(pl, ds, cellKind) && Math.abs(effectiveCellUtil(pl, ds, cellKind) - (pl.utilization || 1)) > 1e-5;
+          fill.textContent = uShow ? String(effectiveCellUtil(pl, ds, cellKind)) : "";
           fill.style.color = hrs > 0 ? "#111" : "";
-          // fill.style.fontSize = "9px";
           fill.style.lineHeight = "20px";
           return fill;
-        }
-        const fillPlan = makeFill();
+        };
+        const fillPlan = makeFill("plan", td_plan);
+        const fillAct = makeFill("actual", td_act);
         td_plan.appendChild(fillPlan);
-        if (pl.isPlanOrActual) {
-          // Planモード
-          td_plan.rowSpan = 2;
-        } else {
-          // Actualモード
-        }
-        
+        td_act.appendChild(fillAct);
+
         if (getCellComment(pl, ds).trim()) {
           const dot = document.createElement("span");
           dot.style.position = "absolute";
@@ -3230,31 +3267,38 @@
 
         td_plan.dataset.date = ds;
         td_plan.dataset.planId = pl.id;
+        td_plan.dataset.cellKind = "plan";
+        td_act.dataset.date = ds;
+        td_act.dataset.planId = pl.id;
+        td_act.dataset.cellKind = "actual";
 
-        td_plan.addEventListener("mousemove", (e) => {
-          const r = td_plan.getBoundingClientRect();
-          const localX = e.clientX - r.left;
-          const m = planCellInteractionMode(pl, ds, localX, r.width, dates);
-          td_plan.style.cursor = cursorForPlanCellMode(m) || "cell";
-        });
-        td_plan.addEventListener("mouseleave", () => {
-          td_plan.style.cursor = "";
-        });
+        const bindEditEvents = (td, cellKind, editable) => {
+          if (!editable) {
+            td.style.cursor = "default";
+            return;
+          }
+          td.addEventListener("mousemove", (e) => {
+            const r = td.getBoundingClientRect();
+            const localX = e.clientX - r.left;
+            const m = planCellInteractionMode(pl, ds, localX, r.width, dates, cellKind);
+            td.style.cursor = cursorForPlanCellMode(m) || "cell";
+          });
+          td.addEventListener("mouseleave", () => {
+            td.style.cursor = "";
+          });
+          td.addEventListener("pointerdown", (e) => onCellPointerDown(e, pl, ds, dates, cellKind));
+        };
 
         td_plan.addEventListener("contextmenu", (e) => {
           e.preventDefault();
           e.stopPropagation();
           openCommentPopup(pl, ds, "plan:" + pl.name, td_plan, key);
         });
-        td_plan.addEventListener("pointerdown", (e) => onCellPointerDown(e, pl, ds, dates));
-        tr_plan.appendChild(td_plan);
 
-        if (pl.isPlanOrActual) {
-          // Planモード
-        } else {
-          // Actualモード
-          tr_act.appendChild(td_act);
-        }
+        bindEditEvents(td_plan, "plan", !!pl.isPlanOrActual);
+        bindEditEvents(td_act, "actual", !pl.isPlanOrActual);
+        tr_plan.appendChild(td_plan);
+        tr_act.appendChild(td_act);
       });
     }
 
@@ -3539,13 +3583,14 @@
     return 0;
   }
 
-  function inputCellUtil(plan, ds) {
-    const cell = plan.cells[ds] || (plan.cells[ds] = {});
+  function inputCellUtil(plan, ds, cellKind) {
+    const cells = getCellsByKind(plan, cellKind);
+    const cell = cells[ds] || (cells[ds] = {});
     const u0 = plan.utilization == null ? 1 : Number(plan.utilization);
-    const curU = effectiveCellUtil(plan, ds);
+    const curU = effectiveCellUtil(plan, ds, cellKind);
 
     // クリックされたセル要素を検索
-    const td = ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"]');
+    const td = ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"][data-cell-kind="' + cellKind + '"]');
     const spn = td.querySelector('span');
     const curText = spn.textContent;
     spn.textContent = String(curU);
@@ -3581,10 +3626,10 @@
         }
       }
       if (Object.keys(cell).length === 0) {
-        delete plan.cells[ds];
+        delete cells[ds];
       }
       spn.contentEditable = "false";
-      updatePlanCellDomByData(plan, ds, plan.cells[ds] || cell, null);
+      updatePlanCellDomByData(plan, ds, cells[ds] || cell, null, cellKind);
       recomputeAllPhaseFromCells(plan);
       plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
@@ -3620,21 +3665,23 @@
     markDirty(state, true);
   }
 
-  function onCellPointerDown(e, pl, ds, dates) {
+  function onCellPointerDown(e, pl, ds, dates, cellKind) {
     if (e.button !== 0) return;
     const td = e.currentTarget;
     const rect = td.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const blk = contiguousBlock(pl, ds, state, dates);
-    const mode = planCellInteractionMode(pl, ds, x, rect.width, dates);
+    const blk = contiguousBlock(pl, ds, state, dates, cellKind);
+    const mode = planCellInteractionMode(pl, ds, x, rect.width, dates, cellKind);
+    const srcCells = getCellsByKind(pl, cellKind);
     state.drag = {
       mode,
       planId: pl.id,
+      cellKind,
       startDate: ds,
       block: blk,
       startX: e.clientX,
-      orig: cloneCells(pl.cells),
-      draftCells: cloneCells(pl.cells),
+      orig: cloneCells(srcCells),
+      draftCells: cloneCells(srcCells),
       frozenDates: dates.slice(),
       lastStep: 0,
       changed: false,
@@ -3661,14 +3708,15 @@
       const dg = state.drag;
       if (dg && pln) {
         if (dg.mode === "click" && !dg.dragMoved && pln) {
-          if (!cellIsOn(pln, ds)) {
+          const plnCells = getCellsByKind(pln, dg.cellKind);
+          if (!cellIsOn(pln, ds, dg.cellKind)) {
             // セルがオフ->オン:稼働率はプラン全体の稼働率をセット
             const util0 = pln.utilization == null ? 1 : Number(pln.utilization);
-            let cell = pln.cells[ds];
+            let cell = plnCells[ds];
             if (!cell || typeof cell !== "object" || cell === true) cell = {};
             if (!cell.util) cell.util = {};
-            pln.cells[ds] = cell;
-            updatePlanCellDomByData(pln, ds, pln.cells[ds], dg.cellDomCache);
+            plnCells[ds] = cell;
+            updatePlanCellDomByData(pln, ds, plnCells[ds], dg.cellDomCache, dg.cellKind);
 
             const minCellDate = earliestInputCellDate(pln);
             if (minCellDate) pln.plannedStart = minCellDate;
@@ -3677,23 +3725,26 @@
             markDirty(state, true);
             syncLeftPanePlanSummaryDom(pln.id);
             refreshManhoursRowsDom([ds]);
-            if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
+            if (dg.cellKind === "plan" && shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
-        } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds)) {
+        } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds, dg.cellKind)) {
           // セル移動なし:クリックのみ:稼働率処理
-          inputCellUtil(pln, ds);
+          inputCellUtil(pln, ds, dg.cellKind);
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
         } else if (dg.changed) {
           // ドラッグ変更範囲日時を配列として作成
           const changedDates = [];
-          const mergedDates = new Set([...Object.keys(pln.cells || {}), ...Object.keys(dg.draftCells || {})]);
+          const targetCells = getCellsByKind(pln, dg.cellKind);
+          const mergedDates = new Set([...Object.keys(targetCells || {}), ...Object.keys(dg.draftCells || {})]);
           mergedDates.forEach((ds) => {
             changedDates.push(ds);
           });
 
-          pln.cells = dg.draftCells;
-          applyPlanCellsDomDiff(pln, dg.orig, pln.cells, dg.frozenDates || [], dg.cellDomCache);
+          if (dg.cellKind === "actual") pln.actualCells = dg.draftCells;
+          else pln.cells = dg.draftCells;
+          const committedCells = getCellsByKind(pln, dg.cellKind);
+          applyPlanCellsDomDiff(pln, dg.orig, committedCells, dg.frozenDates || [], dg.cellDomCache, dg.cellKind);
           const minCellDate = earliestInputCellDate(pln);
           if (minCellDate) pln.plannedStart = minCellDate;
           recomputeAllPhaseFromCells(pln);
@@ -3701,7 +3752,7 @@
           markDirty(state, true);
           syncLeftPanePlanSummaryDom(pln.id);
           refreshManhoursRowsDom(changedDates);
-          if (shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
+          if (dg.cellKind === "plan" && shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
         }
       }
       state.drag = null;
@@ -3826,7 +3877,7 @@
       return;
     }
 
-    const touched = applyPlanCellsDomDiff(pl, prevDraft, nextCells, dates, dg.cellDomCache);
+    const touched = applyPlanCellsDomDiff(pl, prevDraft, nextCells, dates, dg.cellDomCache, dg.cellKind);
     dg.touchedDates = touched;
     dg.draftCells = nextCells;
     dg.lastStep = step;
