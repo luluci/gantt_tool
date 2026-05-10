@@ -507,7 +507,16 @@
       background: var(--bg-darkcol); color: #bbb;
     }
     .daycell .fill {
-      display: block; height: 100%; width: 100%; min-height: 18px; box-sizing: border-box; margin: 0; padding: 0;
+      display: block;
+      height: 100%;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+
+      color: #111;
+      /* min-height: 18px; */
+      /* line-height: 20px; */
     }
 
     .dpvRow td {
@@ -538,6 +547,10 @@
       border-color: inherit;
     }
 
+    table.gantt tbody tr.planRow td.daycell,
+    table.gantt tbody tr.actualRow td.daycell {
+      position: relative;
+    }
     table.gantt tbody tr.planRow.isPlanning {
       height: 14px;
     }
@@ -573,9 +586,16 @@
       z-index: -1;
     }
 
-    .planRow.selected td.daycell {
+    .planRow.isPlanning.selected td.daycell {
       box-shadow: inset 0 2px 0 var(--accent), inset 0 -3px 0 var(--accent);
     }
+    .planRow.isActual.selected td.daycell {
+      box-shadow: inset 0 2px 0 var(--accent);
+    }
+    .actualRow.isActual.selected td.daycell {
+      box-shadow: inset 0 -3px 0 var(--accent);
+    }
+
     .nameCell { cursor: pointer; }
     .nameCell textarea  {
       field-sizing: content;
@@ -1427,17 +1447,20 @@
 
   function applySelectedPlanDom(planId) {
     const pid = String(planId || "");
-    ganttVScroll.querySelectorAll("tr.planRow.selected").forEach((row) => {
+    ganttVScroll.querySelectorAll("tr.planRow.selected, tr.actualRow.selected").forEach((row) => {
       row.classList.remove("selected");
     });
     leftPane.querySelectorAll(".inputPanePlan.selected").forEach((row) => {
       row.classList.remove("selected");
     });
     if (pid) {
-      const row = ganttVScroll.querySelector('tr.planRow[data-plan-id="' + pid.replace(/"/g, '\\"') + '"]');
+      const planIdText = 'data-plan-id="' + pid.replace(/"/g, '\\"') + '"';
+      const row = ganttVScroll.querySelector('tr.planRow[' + planIdText + ']');
       if (row) row.classList.add("selected");
+      const row2 = ganttVScroll.querySelector('tr.actualRow[' + planIdText + ']');
+      if (row2) row2.classList.add("selected");
 
-      const inp = leftPane.querySelector('.inputPanePlan[data-plan-id="' + pid.replace(/"/g, '\\"') + '"]');
+      const inp = leftPane.querySelector('.inputPanePlan[' + planIdText + ']');
       if (inp) {
         inp.classList.add("selected");
       }
@@ -3218,12 +3241,11 @@
       tbody.appendChild(tr);
     }
 
-    function appendPlanDayCells(tr_plan, tr_act, dom, pr, vr, pl) {
+    function appendPlanDayCells(tr_plan, tr_act, dom, pr, vr, pl, isPlanMode) {
       dates.forEach((ds) => {
         const key = commentRefKey("plan", pl, ds);
         const td_plan = document.createElement("td");
         td_plan.className = "daycell";
-        td_plan.style.position = "relative";
         const td_act = document.createElement("td");
         td_act.className = "daycell";
 
@@ -3242,14 +3264,27 @@
           }
           const uShow = cellIsOn(pl, ds, cellKind) && Math.abs(effectiveCellUtil(pl, ds, cellKind) - (pl.utilization || 1)) > 1e-5;
           fill.textContent = uShow ? String(effectiveCellUtil(pl, ds, cellKind)) : "";
-          fill.style.color = hrs > 0 ? "#111" : "";
-          fill.style.lineHeight = "20px";
+
           return fill;
         };
         const fillPlan = makeFill("plan", td_plan);
-        const fillAct = makeFill("actual", td_act);
         td_plan.appendChild(fillPlan);
-        td_act.appendChild(fillAct);
+
+        td_plan.dataset.date = ds;
+        td_plan.dataset.planId = pl.id;
+        td_plan.dataset.cellKind = "plan";
+
+        if (isPlanMode) {
+          // Planモード
+          td_plan.rowSpan = 2;
+        } else {
+          // Actualモード
+          td_act.dataset.date = ds;
+          td_act.dataset.planId = pl.id;
+          td_act.dataset.cellKind = "actual";
+          const fillAct = makeFill("actual", td_act);
+          td_act.appendChild(fillAct);
+        }
 
         if (getCellComment(pl, ds).trim()) {
           const dot = document.createElement("span");
@@ -3264,13 +3299,6 @@
           td_plan.appendChild(dot);
           commentRefs.push({ key, kind: "plan", label: pl.name, target: pl, date: ds, dot });
         }
-
-        td_plan.dataset.date = ds;
-        td_plan.dataset.planId = pl.id;
-        td_plan.dataset.cellKind = "plan";
-        td_act.dataset.date = ds;
-        td_act.dataset.planId = pl.id;
-        td_act.dataset.cellKind = "actual";
 
         const bindEditEvents = (td, cellKind, editable) => {
           if (!editable) {
@@ -3296,9 +3324,14 @@
         });
 
         bindEditEvents(td_plan, "plan", !!pl.isPlanOrActual);
-        bindEditEvents(td_act, "actual", !pl.isPlanOrActual);
         tr_plan.appendChild(td_plan);
-        tr_act.appendChild(td_act);
+        if (isPlanMode) {
+          // Planモード
+        } else {
+          // Actualモード
+          bindEditEvents(td_act, "actual", !pl.isPlanOrActual);
+          tr_act.appendChild(td_act);
+        }
       });
     }
 
@@ -3330,7 +3363,7 @@
         const tr_act = document.createElement("tr");
         tr_plan.className = "planRow" + (state.selectedPlanId === pl.id ? " selected" : "");
         tr_plan.dataset.planId = pl.id;
-        tr_act.className = "actualRow";
+        tr_act.className = "actualRow" + (state.selectedPlanId === pl.id ? " selected" : "");
         tr_act.dataset.planId = pl.id;
         if (i === 0) {
           const t2 = document.createElement("td");
@@ -3401,19 +3434,22 @@
           openCommentPopup(pl, null, "Plan: " + pl.name, tPlan);
         });
 
-        if (pl.isPlanOrActual) {
+        // 表示モード作成:
+        // pl.isPlanOrActual===true and pl.actualCellsが空 -> Planモード（1行表示、セルはplanデータ参照）
+        // そうでない場合はActualモード（planとactualの2行表示、セルはそれぞれのデータ参照）
+        const isPlanMode = pl.isPlanOrActual && (!pl.actualCells || Object.keys(pl.actualCells).length === 0);
+
+        if (isPlanMode) {
           // Planモード
           tr_plan.classList.add("isPlanning");
           tr_act.classList.add("isPlanning");
-          // tr_plan.style.height = "14px";
-          // tr_act.style.height = "14px";
         } else {
           // Actualモード
           tr_plan.classList.add("isActual");
           tr_act.classList.add("isActual");
         }
         tr_plan.appendChild(tPlan);
-        appendPlanDayCells(tr_plan, tr_act, dom, pr, vr, pl);
+        appendPlanDayCells(tr_plan, tr_act, dom, pr, vr, pl, isPlanMode);
         tbody.appendChild(tr_plan);
         tbody.appendChild(tr_act);
       });
