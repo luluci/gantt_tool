@@ -1057,17 +1057,23 @@ const csLoaded = () => {
     }
     let maxCell = start;
     Object.keys(plan.cells).forEach((ds) => {
-      if (cellIsOn(plan, ds)) {
+      if (cellIsOn(plan, ds, cellKindPlan)) {
         if (daysBetween(start, ds) > daysBetween(start, maxCell)) maxCell = ds;
       }
     });
     return daysBetween(last, maxCell) >= 0 ? maxCell : last;
   }
 
-  function earliestInputCellDate(plan) {
+  function earliestInputCellDate(plan, isPlan) {
     let minDate = null;
-    Object.keys(plan.cells || {}).forEach((ds) => {
-      if (!cellIsOn(plan, ds)) return;
+    let tgt = null;
+    if (isPlan === cellKindPlan) {
+      tgt = plan.cells;
+    } else {
+      tgt = plan.actualCells;
+    }
+    Object.keys(tgt || {}).forEach((ds) => {
+      if (!cellIsOn(plan, ds, isPlan)) return;
       if (!minDate || daysBetween(ds, minDate) > 0) minDate = ds;
     });
     return minDate;
@@ -1396,11 +1402,11 @@ const csLoaded = () => {
     };
     eachPlan(state, (pl) => {
       Object.keys(pl.cells || {}).forEach((ds) => {
-        if (!cellIsOn(pl, ds)) return;
+        if (!cellIsOn(pl, ds, cellKindPlan)) return;
         bump(ds);
       });
       Object.keys(pl.actualCells || {}).forEach((ds) => {
-        if (!cellIsOn(pl, ds, "actual")) return;
+        if (!cellIsOn(pl, ds, cellKindActual)) return;
         bump(ds);
       });
     });
@@ -3826,6 +3832,14 @@ const csLoaded = () => {
       dg0.dragMoved = true;
       onCellPointerMove(ev, pln);
     };
+    const updateStartDate = () => {
+      const minCellDate = earliestInputCellDate(pln, pln.isPlanOrActual);
+      if (pln.isPlanOrActual == cellKindPlan) {
+        if (minCellDate) pln.plannedStart = minCellDate;
+      } else {
+        if (minCellDate) pln.actualStart = minCellDate;
+      }
+    }
     const onUp = (ev) => {
       td.releasePointerCapture(ev.pointerId);
       window.removeEventListener("pointermove", onMove);
@@ -3842,9 +3856,7 @@ const csLoaded = () => {
             if (!cell.util) cell.util = {};
             plnCells[ds] = cell;
             updatePlanCellDomByData(pln, ds, plnCells[ds], dg.cellDomCache, dg.cellKind);
-
-            const minCellDate = earliestInputCellDate(pln);
-            if (minCellDate) pln.plannedStart = minCellDate;
+            updateStartDate();
             recomputeAllPhaseFromCells(pln);
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
@@ -3870,8 +3882,7 @@ const csLoaded = () => {
           else pln.cells = dg.draftCells;
           const committedCells = getCellsByKind(pln, dg.cellKind);
           applyPlanCellsDomDiff(pln, dg.orig, committedCells, dg.frozenDates || [], dg.cellDomCache, dg.cellKind);
-          const minCellDate = earliestInputCellDate(pln);
-          if (minCellDate) pln.plannedStart = minCellDate;
+          updateStartDate();
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
