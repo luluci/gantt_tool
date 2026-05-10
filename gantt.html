@@ -3197,70 +3197,71 @@ const csLoaded = () => {
       // Case別総合行
       const isCaseExpanded = state.caseExpanded[cse.id] !== false;
       
-      const caseRow = createManhoursRow("Case: " + cse.name + " (" + (isCaseExpanded ? "▼" : "▶") + ")", (pl) => pl.caseId === cse.id, 0);
-      caseRow.className += " manhoursCaseDetailRow";
-      caseRow.dataset.mhKind = "case";
-      caseRow.dataset.caseId = cse.id;
-      if (!state.manhoursExpanded) caseRow.style.display = "none";
-      
-      // Case行のラベルセルをクリック可能にする
-      const caseLabelCell = caseRow.querySelector(".manhoursHead");
-      if (caseLabelCell) {
-        caseLabelCell.addEventListener("click", (e) => {
-          e.stopPropagation();
-          state.caseExpanded[cse.id] = !isCaseExpanded;
-          renderGantt();
-        });
-      }
-      
-      thead.appendChild(caseRow);
-      
-      // Domain別の集計行
-      state.data.domains.forEach((dom) => {
-        const domRowKey = cse.id + "::" + dom.id;
-        if (state.domainExpanded[domRowKey] == null) state.domainExpanded[domRowKey] = false; // 初期値は展開しない
-        const isDomainExpanded = state.domainExpanded[domRowKey] !== false;
-        
-        const domRow = createManhoursRow(
-          "  └ " + dom.name + " (" + (isDomainExpanded ? "▼" : "▶") + ")",
-          (pl, d) => pl.caseId === cse.id && d.id === dom.id,
-          1
-        );
-        domRow.className += " manhoursDomainDetailRow";
-        domRow.dataset.mhKind = "domain";
-        domRow.dataset.caseId = cse.id;
-        domRow.dataset.domainId = dom.id;
-        
-        // Domain行の表示制御：総合が展開 AND 該当Case行が展開
-        if (!state.manhoursExpanded || !isCaseExpanded) domRow.style.display = "none";
-        
-        // Domain行のラベルセルをクリック可能にする
-        const domLabelCell = domRow.querySelector(".manhoursHead");
-        if (domLabelCell) {
-          domLabelCell.addEventListener("click", (e) => {
+      if (state.manhoursExpanded) {
+        // case集計作成
+        const caseRow = createManhoursRow("Case: " + cse.name + " (" + (isCaseExpanded ? "▼" : "▶") + ")", (pl) => pl.caseId === cse.id, 0);
+        caseRow.className += " manhoursCaseDetailRow";
+        caseRow.dataset.mhKind = "case";
+        caseRow.dataset.caseId = cse.id;
+        // Case行のラベルセルをクリック可能にする
+        const caseLabelCell = caseRow.querySelector(".manhoursHead");
+        if (caseLabelCell) {
+          caseLabelCell.addEventListener("click", (e) => {
             e.stopPropagation();
-            state.domainExpanded[domRowKey] = !isDomainExpanded;
+            state.caseExpanded[cse.id] = !isCaseExpanded;
             renderGantt();
           });
         }
+        thead.appendChild(caseRow);
         
-        thead.appendChild(domRow);
-        
-        // Member別の集計行
-        state.data.members.forEach((mem) => {
-          const memRow = createManhoursRow("    └ " + mem.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id && pl.ownerId === mem.id, 2);
-          memRow.className += " manhoursMemberDetailRow";
-          memRow.dataset.mhKind = "member";
-          memRow.dataset.caseId = cse.id;
-          memRow.dataset.domainId = dom.id;
-          memRow.dataset.memberId = mem.id;
+        // Domain別の集計行
+        state.data.domains.forEach((dom) => {
+          const domRowKey = cse.id + "::" + dom.id;
+          if (state.domainExpanded[domRowKey] == null) state.domainExpanded[domRowKey] = false; // 初期値は展開しない
+          const isDomainExpanded = state.domainExpanded[domRowKey] !== false;
           
-          // Member行の表示制御：総合が展開 AND Case行が展開 AND Domain行が展開
-          if (!state.manhoursExpanded || !isCaseExpanded || !isDomainExpanded) memRow.style.display = "none";
-          
-          thead.appendChild(memRow);
+          // Domain行の表示制御：総合が展開 AND 該当Case行が展開
+          if (isCaseExpanded) {
+            const domRow = createManhoursRow(
+              "  └ " + dom.name + " (" + (isDomainExpanded ? "▼" : "▶") + ")",
+              (pl, d) => pl.caseId === cse.id && d.id === dom.id,
+              1
+            );
+            domRow.className += " manhoursDomainDetailRow";
+            domRow.dataset.mhKind = "domain";
+            domRow.dataset.caseId = cse.id;
+            domRow.dataset.domainId = dom.id;
+            
+            // Domain行のラベルセルをクリック可能にする
+            const domLabelCell = domRow.querySelector(".manhoursHead");
+            if (domLabelCell) {
+              domLabelCell.addEventListener("click", (e) => {
+                e.stopPropagation();
+                state.domainExpanded[domRowKey] = !isDomainExpanded;
+                renderGantt();
+              });
+            }
+            
+            thead.appendChild(domRow);
+            
+            // Member別の集計行
+            state.data.members.forEach((mem) => {
+
+              // Member行の表示制御：総合が展開 AND Case行が展開 AND Domain行が展開
+              if (isDomainExpanded) {
+                const memRow = createManhoursRow("    └ " + mem.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id && pl.ownerId === mem.id, 2);
+                memRow.className += " manhoursMemberDetailRow";
+                memRow.dataset.mhKind = "member";
+                memRow.dataset.caseId = cse.id;
+                memRow.dataset.domainId = dom.id;
+                memRow.dataset.memberId = mem.id;
+                
+                thead.appendChild(memRow);
+              }
+            });
+          }
         });
-      });
+      }
     });
 
     function addDPVRow(label, target, kind) {
