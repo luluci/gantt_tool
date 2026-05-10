@@ -673,7 +673,25 @@
       </div>
     </div>
   </div>
-  <script>
+  <script language="javascript" type="text/javascript">
+
+// C#側からAPI登録を実行される。
+// const wri = chrome.webview.hostObjects.sync.wri;
+// const wri_async = chrome.webview.hostObjects.wri;
+
+// C# -> WebView2 Event Handler
+// C#側からWebView2の初期化が完了したらJavaScriptの初期化としてコールされる
+const csLoaded = () => {
+  try {
+    // wri初期化処理
+  } catch (msg) {
+    return false;
+  }
+  //Utility.Log("<WebView2/JavaScript Loaded.>");
+  return true;
+}
+// ↑ロジックを理解した上で変更すること↑
+
 (function () {
   function toDateString(date) {
     const d = date instanceof Date ? date : new Date(date);
