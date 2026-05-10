@@ -66,6 +66,10 @@
     .listbox {
       height: 110px; min-width: 120px; border: 1px solid var(--border); padding: 2px;
       overflow: auto; background: #fff;
+
+      & .listboxItem {
+        padding: 2px 4px;
+      }
     }
     .listbox option { padding: 2px 4px; }
     .rowBtns {
@@ -151,6 +155,11 @@
       margin: 0;
       padding: 6px;
 
+      & .milestoneTitle {
+        font-weight: bold;
+        margin-bottom: 6px;
+      }
+
       & .milestoneForm {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -180,6 +189,32 @@
       & .milestoneList {
         max-height: 150px;
         overflow-y: auto;
+
+        & .milestoneEmpty {
+          color: #999;
+          font-size: 12px;
+        }
+
+        & .milestoneItem {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 4px;
+          background-color: #f5f5f5;
+          margin-bottom: 3px;
+          border-radius: 3px;
+
+          & .milestoneItemText {
+            font-size: 12px;
+          }
+
+          & .milestoneItemDeleteButton {
+            padding: 0 4px;
+            cursor: pointer;
+            background-color: #fff;
+            border: 1px solid #ccc;
+          }
+        }
       }
     }
     .inputPaneDomain {
@@ -408,6 +443,17 @@
       background: #eaeaea;
       font-weight: 500;
       padding: 1px 0;
+      position: relative;
+    }
+    table.gantt thead tr.calDay th.dayHead .milestoneDot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 8px;
+      height: 8px;
+      transform: rotate(45deg);
+      background: #ff9800;
+      cursor: pointer;
     }
     table.gantt thead tr.calYear th.dayHead,
     table.gantt thead tr.calMonth th.dayHead {
@@ -528,9 +574,19 @@
       position: relative;
     }
     .dpvRow td.treeHead {
+      position: sticky;
       font-weight: 700;
       border: none;
       cursor: pointer;
+    }
+    .dpvRow td span.commentDot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #b0293a;
     }
     .dpv-domain td { background: var(--bg-domain); border-color: var(--bg-domain); color: var(--color-domain); }
     .dpv-project td { background: var(--bg-project); border-color: var(--bg-project); color: var(--color-project); }
@@ -571,6 +627,16 @@
       position: sticky;
       z-index: var(--z-index-body);
       border-color: transparent !important;
+
+      & .commentDot {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #b0293a;
+      }
     }
     .planRow th::before,
     .planRow td::before,
@@ -613,7 +679,17 @@
     .planFields { display: flex; flex-direction: column; gap: 6px; font-size: 11px; margin: 4px 0 4px 4px; }
     .planRowH { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 8px; }
     .planRowH label { display: flex; flex-direction: column; gap: 1px; font-size: 10px; white-space: nowrap; }
-    .planRowH input, .planRowH select { font-size: 11px; max-width: 9em; }
+    .planRowH input[type="number"] {
+      font-size: 11px;
+      max-width: 4.5em;
+    }
+    .planRowH input[type="color"] {
+      max-width: 2em;
+    }
+    .planRowH select {
+      font-size: 11px;
+      max-width: 9em;
+    }
     .saveBar { display: flex; align-items: center; gap: 8px; }
 
     .actionBar {
@@ -1813,7 +1889,7 @@ const csLoaded = () => {
     memList.className = "listbox";
     d.members.forEach((m) => {
       const row = document.createElement("div");
-      row.style.padding = "2px 4px";
+      row.className = "listboxItem";
       row.textContent = m.name + " (" + m.id.slice(0, 6) + "…)";
       memList.appendChild(row);
     });
@@ -2440,7 +2516,6 @@ const csLoaded = () => {
       inpUtil.type = "number";
       inpUtil.step = "0.1";
       inpUtil.min = "0.1";
-      inpUtil.style.maxWidth = "4.5em";
       inpUtil.value = pl.utilization;
       inpUtil.addEventListener("change", () => {
         const nextUtil = Number(inpUtil.value) || 1;
@@ -2533,7 +2608,6 @@ const csLoaded = () => {
       addLabeled(rowSelect, "owner", selOwn);
       const colPick = document.createElement("input");
       colPick.type = "color";
-      colPick.style.maxWidth = "3em";
       colPick.value = (planBarColor(pl, state) || "#6b9bd2").replace(/[^#0-9a-fA-F]/g, "").slice(0, 7);
       colPick.addEventListener("input", () => {
         applyColorToCaseOwner(tk, pl, colPick.value);
@@ -2616,8 +2690,7 @@ const csLoaded = () => {
     milestoneSection.className = "milestoneSection";
     
     const msTitle = document.createElement("div");
-    msTitle.style.fontWeight = "bold";
-    msTitle.style.marginBottom = "6px";
+    msTitle.className = "milestoneTitle";
     msTitle.textContent = "マイルストーン設定";
     milestoneSection.appendChild(msTitle);
     
@@ -2660,8 +2733,7 @@ const csLoaded = () => {
       msList.innerHTML = "";
       if (!d.milestones || Object.keys(d.milestones).length === 0) {
         const empty = document.createElement("div");
-        empty.style.color = "#999";
-        empty.style.fontSize = "12px";
+        empty.className = "milestoneEmpty";
         empty.textContent = "マイルストーン未登録";
         msList.appendChild(empty);
         return;
@@ -2669,25 +2741,16 @@ const csLoaded = () => {
       Object.keys(d.milestones).sort().forEach((date) => {
         const ms = d.milestones[date];
         const msItem = document.createElement("div");
-        msItem.style.display = "flex";
-        msItem.style.justifyContent = "space-between";
-        msItem.style.alignItems = "center";
-        msItem.style.padding = "4px";
-        msItem.style.backgroundColor = "#f5f5f5";
-        msItem.style.marginBottom = "3px";
-        msItem.style.borderRadius = "3px";
+        msItem.className = "milestoneItem";
         
         const msText = document.createElement("span");
-        msText.style.fontSize = "12px";
+        msText.className = "milestoneItemText";
         msText.innerHTML = "<strong>" + date + "</strong>: " + ms.text;
         msItem.appendChild(msText);
         
         const msDelBtn = document.createElement("button");
+        msDelBtn.className = "milestoneItemDeleteButton";
         msDelBtn.textContent = "×";
-        msDelBtn.style.padding = "0 4px";
-        msDelBtn.style.cursor = "pointer";
-        msDelBtn.style.backgroundColor = "#fff";
-        msDelBtn.style.border = "1px solid #ccc";
         msDelBtn.addEventListener("click", () => {
           if (!confirm(`マイルストーン "${date}: ${ms.text}" を削除してもよろしいですか？`)) return;
           delete d.milestones[date];
@@ -2931,22 +2994,13 @@ const csLoaded = () => {
         const th = document.createElement("th");
         th.className = "dayHead";
         th.textContent = textFn(ds);
-        th.style.position = "relative";
         if (bgFn) th.style.background = bgFn(ds) || "";
         
         // マイルストーン情報の確認
         if (state.data.milestones && state.data.milestones[ds] && rowClass === "calDay") {
           const key = "milestone:" + ds + ":";
           const dot = document.createElement("span");
-          dot.style.position = "absolute";
-          dot.style.top = "2px";
-          dot.style.right = "2px";
-          dot.style.width = "8px";
-          dot.style.height = "8px";
-          // dot.style.borderRadius = "50%";
-          dot.style.transform = "rotate(45deg)";
-          dot.style.background = "#ff9800";
-          dot.style.cursor = "pointer";
+          dot.className = "milestoneDot";
           dot.title = "マイルストーン";
           dot.dataset.commentRef = key;
           th.appendChild(dot);
@@ -3116,11 +3170,9 @@ const csLoaded = () => {
     // 総合人工行（クリック可能、集計行の表示非表示を切り替え）
     const totalManhoursRow = document.createElement("tr");
     totalManhoursRow.className = "treeRow manhoursRow manhoursHeader";
-    //totalManhoursRow.dataset.mhKind = "total";
     const totalLabelCell = document.createElement("th");
     totalLabelCell.className = "manhoursHead";
     totalLabelCell.colSpan = 2;
-    // totalLabelCell.style.userSelect = "none";
     totalLabelCell.textContent = "総合人工 (" + (state.manhoursExpanded ? "▼" : "▶") + ")";
     totalManhoursRow.appendChild(totalLabelCell);
     
@@ -3238,17 +3290,10 @@ const csLoaded = () => {
       dates.forEach((ds, i) => {
         const key = commentRefKey(kind, target, ds);
         const c = tr.children[startIdx + i];
-        // c.style.position = "relative";
 
         if (getCellComment(target, ds).trim()) {
           const dot = document.createElement("span");
-          dot.style.position = "absolute";
-          dot.style.top = "2px";
-          dot.style.right = "2px";
-          dot.style.width = "5px";
-          dot.style.height = "5px";
-          dot.style.borderRadius = "50%";
-          dot.style.background = "#b0293a";
+          dot.className = "commentDot";
           dot.dataset.commentRef = key;
           c.appendChild(dot);
           commentRefs.push({ key, kind, label, target, date: ds, dot });
@@ -3309,13 +3354,7 @@ const csLoaded = () => {
 
         if (getCellComment(pl, ds).trim()) {
           const dot = document.createElement("span");
-          dot.style.position = "absolute";
-          dot.style.top = "2px";
-          dot.style.right = "2px";
-          dot.style.width = "5px";
-          dot.style.height = "5px";
-          dot.style.borderRadius = "50%";
-          dot.style.background = "#b0293a";
+          dot.className = "commentDot";
           dot.dataset.commentRef = key;
           td_plan.appendChild(dot);
           commentRefs.push({ key, kind: "plan", label: pl.name, target: pl, date: ds, dot });
