@@ -37,6 +37,8 @@
       --color-project: #fff;
       --color-version: #41205f;
 
+      --input-pane-head_h: 33px;
+
       --z-index-comment: 109;
       --z-index-comment-line: 108;
       --z-index-header-caption: 99;
@@ -110,6 +112,7 @@
       display: grid;
       grid-template-columns: 1fr 115px;
 
+      height: var(--input-pane-head_h);
       font-weight: 600;
       margin: 0;
       padding: 6px;
@@ -228,6 +231,7 @@
       color: var(--color-domain);
 
       position: sticky;
+      top: calc(var(--input-pane-head_h) * 1);
       z-index: var(--z-index-input-domain);
     }
     .inputPaneProject {
@@ -240,6 +244,7 @@
       color: var(--color-project);
 
       position: sticky;
+      top: calc(var(--input-pane-head_h) * 2);
       z-index: var(--z-index-input-project);
     }
     .inputPaneVersion {
@@ -252,6 +257,7 @@
       color: var(--color-version);
 
       position: sticky;
+      top: calc(var(--input-pane-head_h) * 3);
       z-index: var(--z-index-input-version);
     }
     .inputPaneTask {
@@ -263,6 +269,7 @@
       border-color: #ddd;
 
       position: sticky;
+      top: calc(var(--input-pane-head_h) * 4);
       z-index: var(--z-index-input-task);
     }
     .inputPanePlan {
@@ -2801,6 +2808,8 @@ const csLoaded = () => {
   }
 
   function calcTreeSticky() {
+    return;
+
     // ツール全体コンテナの高さを取得
     const inputPaneTool = leftPane.querySelector(".inputPaneToolHeader");
     const inpPaneHeaderH = inputPaneTool ? inputPaneTool.getBoundingClientRect().height : 0;
