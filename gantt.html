@@ -1439,18 +1439,29 @@ const csLoaded = () => {
     return false;
   }
 
-  function syncLeftPanePlanSummaryDom(planId) {
+  function syncLeftPanePlanSummaryDom(planId, isPlan) {
     if (!planId) return;
     const pl = findPlan(state, planId);
     if (!pl) return;
     const box = leftPane.querySelector('.inputPanePlan[data-plan-id="' + planId + '"]');
     if (!box) return;
-    const inpStart = box.querySelector('input[data-field="plannedStart"]');
-    if (inpStart) inpStart.value = pl.plannedStart || "";
-    const inpEnd = box.querySelector('input[data-field="plannedEnd"]');
-    if (inpEnd) inpEnd.value = pl.plannedEnd || "";
-    const inpAll = box.querySelector('input[data-field="phasePlannedAll"]');
-    if (inpAll) inpAll.value = String((pl.phaseHours && pl.phaseHours.all && pl.phaseHours.all.planned) || 0);
+
+    if (isPlan == cellKindPlan) {
+      const inpStart = box.querySelector('input[data-field="plannedStart"]');
+      if (inpStart) inpStart.value = pl.plannedStart || "";
+      const inpEnd = box.querySelector('input[data-field="plannedEnd"]');
+      if (inpEnd) inpEnd.value = pl.plannedEnd || "";
+      const inpAll = box.querySelector('input[data-field="phasePlannedAll"]');
+      if (inpAll) inpAll.value = String((pl.phaseHours && pl.phaseHours.all && pl.phaseHours.all.planned) || 0);
+    } else {
+      const inpStart = box.querySelector('input[data-field="actualStart"]');
+      if (inpStart) inpStart.value = pl.actualStart || "";
+      // const inpEnd = box.querySelector('input[data-field="actualEnd"]');
+      // if (inpEnd) inpEnd.value = pl.actualEnd || "";
+      const inpAll = box.querySelector('input[data-field="phaseActualAll"]');
+      if (inpAll) inpAll.value = String((pl.phaseHours && pl.phaseHours.all && pl.phaseHours.all.actual) || 0);
+    }
+
   }
 
   function markDirty(state, v) {
@@ -2399,7 +2410,7 @@ const csLoaded = () => {
         plannedRow.appendChild(plannedStartCell);
         const plannedEndCell = document.createElement("td");
         const inpEnd = document.createElement("input");
-        inpEnd.type = "text";
+        inpEnd.type = "date";
         inpEnd.readOnly = true;
         inpEnd.dataset.field = "plannedEnd";
         inpEnd.value = pl.plannedEnd || "";
@@ -2415,6 +2426,8 @@ const csLoaded = () => {
         const actualStartCell = document.createElement("td");
         const aS = document.createElement("input");
         aS.type = "date";
+        aS.readOnly = true;
+        aS.dataset.field = "actualStart";
         aS.value = pl.actualStart || "";
         aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
         actualStartCell.appendChild(aS);
@@ -2502,12 +2515,16 @@ const csLoaded = () => {
         inpA.className = "hourInput";
         inpA.type = "text";
         inpA.value = String((pl.phaseHours[ph] && pl.phaseHours[ph].actual) || 0);
-        inpA.addEventListener("change", () => {
-          syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
-          markDirty(state, true);
-          // renderAll();
-          renderGantt();
-        });
+        if (ph === "all") {
+          inpA.readOnly = true;
+          inpA.dataset.field = "phaseActualAll";
+          inpA.title = "ガントのセル入力から集計（チャート反映）";
+        } else {
+          inpA.addEventListener("change", () => {
+            syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
+            markDirty(state, true);
+          });
+        }
         tdA.appendChild(inpA);
         actualRow.appendChild(tdA);
       });
@@ -2553,16 +2570,17 @@ const csLoaded = () => {
         });
         const targetDates = [];
         Object.keys(pl.cells || {}).forEach((ds) => {
-          updatePlanCellDomByData(pl, ds, pl.cells[ds], null);
+          updatePlanCellDomByData(pl, ds, pl.cells[ds], null, cellKindPlan);
           targetDates.push(ds);
         });
         Object.keys(pl.actualCells || {}).forEach((ds) => {
-          updatePlanCellDomByData(pl, ds, pl.actualCells[ds], null, "actual");
+          updatePlanCellDomByData(pl, ds, pl.actualCells[ds], null, cellKindActual);
           targetDates.push(ds);
         });
         recomputeAllPhaseFromCells(pl);
         pl.plannedEnd = computePlannedEnd(pl, state);
-        syncLeftPanePlanSummaryDom(pl.id);
+        syncLeftPanePlanSummaryDom(pl.id, cellKindPlan);
+        syncLeftPanePlanSummaryDom(pl.id, cellKindActual);
         refreshManhoursRowsDom(targetDates);
         markDirty(state, true);
       });
@@ -3740,7 +3758,7 @@ const csLoaded = () => {
       recomputeAllPhaseFromCells(plan);
       plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
-      syncLeftPanePlanSummaryDom(plan.id);
+      syncLeftPanePlanSummaryDom(plan.id, plan.isPlanOrActual);
       refreshManhoursRowsDom([ds]);
     };
     spn.addEventListener("blur", onChange);
@@ -3830,7 +3848,7 @@ const csLoaded = () => {
             recomputeAllPhaseFromCells(pln);
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
-            syncLeftPanePlanSummaryDom(pln.id);
+            syncLeftPanePlanSummaryDom(pln.id, pln.isPlanOrActual);
             refreshManhoursRowsDom([ds]);
             if (dg.cellKind === cellKindPlan && shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
@@ -3857,7 +3875,7 @@ const csLoaded = () => {
           recomputeAllPhaseFromCells(pln);
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
-          syncLeftPanePlanSummaryDom(pln.id);
+          syncLeftPanePlanSummaryDom(pln.id, pln.isPlanOrActual);
           refreshManhoursRowsDom(changedDates);
           if (dg.cellKind === cellKindPlan && shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
         }
