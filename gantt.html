@@ -794,7 +794,7 @@ const csLoaded = () => {
               pl.cells = pl.cells || {};
               pl.actualCells = pl.actualCells || {};
               pl.comment = pl.comment || {};
-              if (pl.isPlanOrActual == null) pl.isPlanOrActual = true;  // true:plan, false:actual
+              if (pl.isPlanOrActual == null) pl.isPlanOrActual = cellKindPlan;  // true:plan, false:actual
               if (pl.statusId === undefined) pl.statusId = d.statuses[0] && d.statuses[0].id || null;
               migratePlanCellsToDayModel(pl);
               d.phases.forEach((ph) => {
@@ -1985,7 +1985,7 @@ const csLoaded = () => {
       const pl = {
         id: uid(),
         name: "新しい plan",
-        isPlanOrActual: true,
+        isPlanOrActual: cellKindPlan,
         plannedStart: toDateString(new Date()),
         plannedEnd: "",
         actualStart: "",
@@ -2232,7 +2232,7 @@ const csLoaded = () => {
       isPlanningCheck.checked = pl.isPlanOrActual;
       isPlanningCheck.title = "ON:予定入力モード/OFF:実績入力モード";
       isPlanningCheck.addEventListener("change", () => {
-        pl.isPlanOrActual = isPlanningCheck.checked;
+        pl.isPlanOrActual = isPlanningCheck.checked ? cellKindPlan : cellKindActual;
         markDirty(state, true);
         renderGantt();
       });
