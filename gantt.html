@@ -4054,8 +4054,10 @@ const csLoaded = () => {
 
     const text = serializeJs(cloneForSave(state.data));
     try {
-      if (isWri() && window.wri && window.wri.io && window.wri.io.file && window.wri.io.file.SaveTo) {
-        window.wri.io.file.SaveTo(dataFileName, text);
+      if (isWri() && wri && wri.io && wri.io.file && wri.io.file.SaveTo) {
+        const htmlPath = wri.SourceDirectoryPath;
+        const filePath = wri.io.path.Combine(htmlPath, dataFileName);
+        wri.io.file.SaveTo(filePath, text);
       } else if (window.showSaveFilePicker) {
         const handle = state.fileHandle || await window.showSaveFilePicker({
           suggestedName: dataFileName,
