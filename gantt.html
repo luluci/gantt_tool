@@ -1473,10 +1473,13 @@ const csLoaded = () => {
 
   function markDirty(state, v) {
     state.dirty = v;
+    updateToolSaveStatus();
   }
   function updateToolSaveStatus() {
-    const el = document.getElementById("ganttToolSaveStatus");
-    if (el) el.textContent = state.dirty ? "変更あり" : "保存済み";
+    if (state.toolSaveStatus === null) {
+      state.toolSaveStatus = document.getElementById("ganttToolSaveStatus");
+    }
+    if (state.toolSaveStatus) state.toolSaveStatus.textContent = state.dirty ? "変更あり" : "保存済み";
   }
 
   function isWri() {
@@ -1504,6 +1507,9 @@ const csLoaded = () => {
     fileHandle: null,
     drag: null,
     today: toDateString(new Date()),
+
+    // element参照: null注意
+    toolSaveStatus: null,
   };
 
   function initData() {
@@ -1521,7 +1527,8 @@ const csLoaded = () => {
       recomputeAllPhaseFromCells(pl);
       pl.plannedEnd = computePlannedEnd(pl, state);
     });
-    markDirty(state, false);
+    // markDirty(state, false);
+    state.dirty = false;
 
     ganttVScroll.addEventListener("scrollend", () => {
       if (milestoneLayer != null && milestoneLineLayer != null && state.commentDisplayMode === "always") {
@@ -2516,7 +2523,7 @@ const csLoaded = () => {
         } else {
           inpP.addEventListener("change", () => {
             syncPhaseTotalsFromField(state, pl, ph, "planned", inpP.value);
-            updateToolSaveStatus(true);
+            markDirty(state, true);
           });
         }
         tdP.appendChild(inpP);
@@ -3087,7 +3094,9 @@ const csLoaded = () => {
         const span = document.createElement("span");
         span.id = "ganttToolSaveStatus";
         span.className = "muted";
-        span.textContent = state.dirty ? "変更あり" : "保存済み";
+        span.textContent = state.dirty ? "変更あり" : "変更なし";
+        state.toolSaveStatus = span;
+        // updateToolSaveStatus();
         saveBlock.appendChild(bSave);
         saveBlock.appendChild(span);
 
