@@ -2081,17 +2081,30 @@ const csLoaded = () => {
     span.replaceWith(inp);
     inp.focus();
     inp.select();
+    let cancel = false;
     function done() {
-      onCommit(inp.value);
-      renderAll();
+      if (!cancel) {
+        if (span.textContent === inp.value) {
+          cancel = true;
+        } else {
+          span.textContent = inp.value;
+        }
+      }
+      inp.replaceWith(span);
+      onCommit(inp.value, cancel);
+      // renderAll();
     }
     inp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); inp.blur(); }
+      if (e.key === "Enter" || e.key === "Escape") {
+        if (e.key === "Escape") cancel = true;
+        e.preventDefault();
+        inp.blur();
+      }
     });
     inp.addEventListener("blur", done);
   }
 
-  function renderTree() {
+  function renderInputPane() {
     leftPane.innerHTML = "";
     const d = state.data;
     const createDefaultPlan = () => {
@@ -2146,10 +2159,11 @@ const csLoaded = () => {
       const ds = document.createElement("span");
       ds.className = "nameCell";
       ds.textContent = dom.name;
-      ds.addEventListener("click", () => startEditLabel(ds, (v) => {
-        if (v) {
+      ds.addEventListener("click", () => startEditLabel(ds, (v, cancel) => {
+        if (!cancel && v) {
           dom.name = v;
           markDirty(state, true);
+          renderGantt();
         }
       }));
       title.appendChild(ds);
@@ -2196,7 +2210,13 @@ const csLoaded = () => {
       const ps = document.createElement("span");
       ps.className = "nameCell";
       ps.textContent = pr.name;
-      ps.addEventListener("click", () => startEditLabel(ps, (v) => { pr.name = v || pr.name; markDirty(state, true); }));
+      ps.addEventListener("click", () => startEditLabel(ps, (v, cancel) => {
+        if (!cancel && v) {
+          pr.name = v;
+        }
+        markDirty(state, true);
+        renderGantt();
+      }));
       title.appendChild(ps);
       // tool
       const tool = document.createElement("div");
@@ -2241,7 +2261,13 @@ const csLoaded = () => {
       const vs = document.createElement("span");
       vs.className = "nameCell";
       vs.textContent = vr.name;
-      vs.addEventListener("click", () => startEditLabel(vs, (v) => { vr.name = v || vr.name; markDirty(state, true); }));
+      vs.addEventListener("click", () => startEditLabel(vs, (v, cancel) => {
+        if (!cancel && v) {
+          vr.name = v;
+        }
+        markDirty(state, true);
+        renderGantt();
+      }));
       title.appendChild(vs);
       // tool
       const tool = document.createElement("div");
@@ -2288,7 +2314,13 @@ const csLoaded = () => {
       const ts = document.createElement("span");
       ts.className = "nameCell";
       ts.textContent = tk.name;
-      ts.addEventListener("click", () => startEditLabel(ts, (v) => { tk.name = v || tk.name; markDirty(state, true); }));
+      ts.addEventListener("click", () => startEditLabel(ts, (v, cancel) => {
+        if (!cancel && v) {
+          tk.name = v;
+        }
+        markDirty(state, true);
+        renderGantt();
+      }));
       title.appendChild(ts);
       // tool
       const tool = document.createElement("div");
@@ -2330,7 +2362,13 @@ const csLoaded = () => {
       const ns = document.createElement("span");
       ns.className = "nameCell";
       ns.textContent = pl.name;
-      ns.addEventListener("click", () => startEditLabel(ns, (v) => { pl.name = v || pl.name; markDirty(state, true); }));
+      ns.addEventListener("click", () => startEditLabel(ns, (v, cancel) => {
+        if (!cancel && v) {
+          pl.name = v;
+        }
+        markDirty(state, true);
+        renderGantt();
+      }));
       title.appendChild(ns);
       // tool
       const tool = document.createElement("div");
@@ -4244,7 +4282,7 @@ const csLoaded = () => {
     leftPane.classList.toggle("hidden", !state.inputPaneVisible);
     resizer.classList.toggle("hidden", !state.inputPaneVisible);
     renderTop();
-    renderTree();
+    renderInputPane();
     renderGantt();
   }
 
