@@ -979,6 +979,13 @@ const csLoaded = () => {
     plan.phaseHours.all.actual = sumActual;
   }
 
+  const dayKindNotTarget = null;
+  const dayKindSunday = 1;
+  const dayKindSaturday = 2;
+  const dayKindCommonHoliday = 3;
+  const dayKindMemberHoliday = 4;
+  const dayKindToday = 5;
+
   function isWeekendYMD(ymd) {
     const d = parseYMD(ymd);
     if (!d) return false;
@@ -988,38 +995,40 @@ const csLoaded = () => {
 
   function weekendTypeYMD(ymd) {
     const d = parseYMD(ymd);
-    if (!d) return "";
+    if (!d) return dayKindNotTarget;
     const w = d.getDay();
-    if (w === 6) return "saturday";
-    if (w === 0) return "sunday";
-    return "";
+    if (w === 6) return dayKindSaturday;
+    if (w === 0) return dayKindSunday;
+    return dayKindNotTarget;
+  }
+
+  function todayTypeForDate(ymd, state) {
+    // today
+    if (ymd === state.today) return dayKindToday;
+    return dayKindNotTarget;
   }
 
   function holidayTypeForDate(ymd, plan, state) {
     // 特定日判定
-    // today
-    if (ymd === state.today) return "today";
     // 休日判定：担当者休日 > 共通休日 > 土日
     const mem = state.data.members.find((m) => m.id === plan.ownerId);
-    if (mem && Array.isArray(mem.holidays) && mem.holidays.includes(ymd)) return "member";
-    if (state.data.commonHolidays.includes(ymd)) return "common";
+    if (mem && Array.isArray(mem.holidays) && mem.holidays.includes(ymd)) return dayKindMemberHoliday;
+    if (state.data.commonHolidays.includes(ymd)) return dayKindCommonHoliday;
     return weekendTypeYMD(ymd);
   }
 
   function holidayTypeForHeaderDate(ymd, state) {
-    // today
-    if (ymd === state.today) return "today";
     // 休日判定：共通休日 > 土日
-    if (state.data.commonHolidays.includes(ymd)) return "common";
+    if (state.data.commonHolidays.includes(ymd)) return dayKindCommonHoliday;
     return weekendTypeYMD(ymd);
   }
 
   function holidayBgColor(type) {
-    if (type === "member") return "var(--holiday-strong)";
-    if (type === "common") return "var(--holiday-strong)";
-    if (type === "sunday") return "var(--holiday-sun)";
-    if (type === "saturday") return "var(--holiday-sat)";
-    if (type === "today") return "var(--specday-today)";
+    if (type === dayKindMemberHoliday) return "var(--holiday-strong)";
+    if (type === dayKindCommonHoliday) return "var(--holiday-strong)";
+    if (type === dayKindSunday) return "var(--holiday-sun)";
+    if (type === dayKindSaturday) return "var(--holiday-sat)";
+    if (type === dayKindToday) return "var(--specday-today)";
     return "";
   }
 
@@ -1240,7 +1249,7 @@ const csLoaded = () => {
     const fill = td.querySelector(".fill");
     if (!fill) return;
     const on = !!(dateCell && typeof dateCell === "object" && dateCell.util && typeof dateCell.util === "object");
-    const holType = holidayTypeForDate(ds, plan, state);
+    const holType = holidayTypeForDate(ds, plan, state) || todayTypeForDate(ds, state);
     if (on) {
       td.style.background = planBarColor(plan, state);
       fill.style.background = "transparent";
@@ -3220,8 +3229,8 @@ const csLoaded = () => {
 
     addGroupedHeaderRow("calYear", (ds) => ds.slice(0, 4));
     addGroupedHeaderRow("calMonth", (ds) => ds.slice(5, 7));
-    addDayHeaderRow("calDay", (ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
-    addDayHeaderRow("calWeek", (ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state)));
+    addDayHeaderRow("calDay", (ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state) || todayTypeForDate(ds, state)));
+    addDayHeaderRow("calWeek", (ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state) || todayTypeForDate(ds, state)));
 
     // 人工数集計行を追加
     function createManhoursRow(label, filterFn, depth = 0) {
@@ -3418,7 +3427,7 @@ const csLoaded = () => {
         const makeFill = (cellKind, td) => {
           const hrs = dayHoursAll(pl, ds, cellKind);
           const base = planBarColor(pl, state);
-          const holType = holidayTypeForDate(ds, pl, state);
+          const holType = holidayTypeForDate(ds, pl, state) || todayTypeForDate(ds, state);
           const fill = document.createElement("span");
           fill.className = "fill";
           if (hrs > 0) {
