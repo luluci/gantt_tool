@@ -1574,9 +1574,9 @@ const csLoaded = () => {
     target.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
-  function scrollGanttToElem(elem) {
+  function scrollGanttToElem(elem, opt) {
     if (!elem) return;
-    elem.scrollIntoView({ block: "center", inline: "center" });
+    elem.scrollIntoView(opt);
   }
 
   function applySelectedPlanDom(planId) {
@@ -3179,7 +3179,7 @@ const csLoaded = () => {
         bJumpToday.textContent = "Jump:今日";
         bJumpToday.addEventListener("click", () => {
           const today = document.querySelector("table.gantt tr.calDay .today");
-          scrollGanttToElem(today);
+          scrollGanttToElem(today, { inline: "center" });
         });
 
         toolBox.appendChild(saveBlock);
