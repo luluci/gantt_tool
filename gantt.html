@@ -1703,7 +1703,7 @@ const csLoaded = () => {
       }
       markDirty(state, true);
       closePopup();
-      renderAll();
+      renderGantt();
     });
     bDel.addEventListener("click", () => {
       if (!commentPopupTarget) return;
@@ -1720,10 +1720,19 @@ const csLoaded = () => {
       } else {
         // Node mode
         setNodeComment(commentPopupTarget, "");
+        // plan のコメント変更時、左入力ペインの textarea を直接更新
+        if (commentPopupTarget.plans === undefined) {
+          // plan オブジェクト（plans プロパティを持つのは task なので、plans がなければ plan）
+          const planId = commentPopupTarget.id;
+          const textarea = leftPane.querySelector('textarea[data-field="comment"][data-plan-id="' + planId + '"]');
+          if (textarea) {
+            textarea.value = "";
+          }
+        }
       }
       markDirty(state, true);
       closePopup();
-      renderAll();
+      renderGantt();
     });
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && pop.style.display !== "none") closePopup();
@@ -2553,14 +2562,22 @@ const csLoaded = () => {
         aS.readOnly = true;
         aS.dataset.field = "actualStart";
         aS.value = pl.actualStart || "";
-        aS.addEventListener("change", () => { pl.actualStart = aS.value; markDirty(state, true); renderAll(); });
+        aS.addEventListener("change", () => {
+          pl.actualStart = aS.value;
+          markDirty(state, true);
+          renderGantt();
+        });
         actualStartCell.appendChild(aS);
         actualRow.appendChild(actualStartCell);
         const actualEndCell = document.createElement("td");
         const aE = document.createElement("input");
         aE.type = "date";
         aE.value = pl.actualEnd || "";
-        aE.addEventListener("change", () => { pl.actualEnd = aE.value; markDirty(state, true); renderAll(); });
+        aE.addEventListener("change", () => {
+          pl.actualEnd = aE.value;
+          markDirty(state, true);
+          renderGantt();
+        });
         actualEndCell.appendChild(aE);
         actualRow.appendChild(actualEndCell);
         dateTable.appendChild(actualRow);
@@ -2712,7 +2729,7 @@ const csLoaded = () => {
           selCase.value = prev || "";
         } else {
           markDirty(state, true);
-          renderAll();
+          renderGantt();
         }
       });
       addLabeled(rowSelect, "case", selCase);
@@ -2735,17 +2752,18 @@ const csLoaded = () => {
           selOwn.value = prev || "";
         } else {
           markDirty(state, true);
-          renderAll();
+          renderInputPane();
+          renderGantt();
         }
       });
       addLabeled(rowSelect, "owner", selOwn);
       const colPick = document.createElement("input");
       colPick.type = "color";
       colPick.value = (planBarColor(pl, state) || "#6b9bd2").replace(/[^#0-9a-fA-F]/g, "").slice(0, 7);
-      colPick.addEventListener("input", () => {
+      colPick.addEventListener("change", () => {
         applyColorToCaseOwner(tk, pl, colPick.value);
         markDirty(state, true);
-        renderAll();
+        renderGantt();
       });
       addLabeled(rowSelect, "色", colPick);
       const selSt = document.createElement("select");
@@ -2759,7 +2777,7 @@ const csLoaded = () => {
       selSt.addEventListener("change", () => {
         pl.statusId = selSt.value || null;
         markDirty(state, true);
-        renderAll();
+        renderGantt();
       });
       addLabeled(rowSelect, "status", selSt);
 
