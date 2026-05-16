@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -110,7 +110,7 @@
     }
     .inputPaneHeader {
       display: grid;
-      grid-template-columns: 1fr 115px;
+      grid-template-columns: 1fr 160px;
 
       height: var(--input-pane-head_h);
       font-weight: 600;
@@ -131,7 +131,7 @@
         justify-content: flex-end;
         align-items: center;
         flex-wrap: wrap;
-        gap: 14px;
+        gap: 5px;
 
         & button {
           white-space: nowrap;
@@ -1513,7 +1513,7 @@ const csLoaded = () => {
     caseFilter: [],
     selectedPlanId: null,
     selectedManhoursRow: null,
-    leftPaneWidth: 340,
+    leftPaneWidth: 450,
     topPaneHeight: null,
     commentDisplayMode: "always",
     commentContextKey: null,
@@ -2165,6 +2165,34 @@ const csLoaded = () => {
       return b;
     }
 
+    const moveItem = (arr, item, direction) => {
+      if (!Array.isArray(arr) || !item) return false;
+      const idx = arr.indexOf(item);
+      if (idx < 0) return false;
+      const next = idx + direction;
+      if (next < 0 || next >= arr.length) return false;
+      const tmp = arr[next];
+      arr[next] = arr[idx];
+      arr[idx] = tmp;
+      return true;
+    };
+    const addMoveBtns = (toolEl, arr, item, tgtElem) => {
+      toolEl.appendChild(addBtn("↑", () => {
+        if (!moveItem(arr, item, -1)) return;
+        const swap = tgtElem.previousElementSibling;
+        if (swap) tgtElem.parentNode.insertBefore(tgtElem, swap);
+        markDirty(state, true);
+        renderGantt();
+      }));
+      toolEl.appendChild(addBtn("↓", () => {
+        if (!moveItem(arr, item, +1)) return;
+        const swap = tgtElem.nextElementSibling;
+        if (swap) tgtElem.parentNode.insertBefore(swap, tgtElem);
+        markDirty(state, true);
+        renderGantt();
+      }));
+    };
+
     const makeDomainNode = (dom) => {
       const domEl = document.createElement("div");
       domEl.className = "inputPaneDomain";
@@ -2199,6 +2227,7 @@ const csLoaded = () => {
         domEl.appendChild(pe);
         calcTreeSticky();
       }));
+      addMoveBtns(tool, state.data.domains, dom, domEl);
       tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${dom.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
@@ -2250,6 +2279,7 @@ const csLoaded = () => {
         pe.appendChild(ve);
         calcTreeSticky();
       }));
+      addMoveBtns(tool, dom.projects, pr, pe);
       tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${pr.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
@@ -2305,6 +2335,7 @@ const csLoaded = () => {
         ve.appendChild(te);
         calcTreeSticky();
       }));
+      addMoveBtns(tool, pr.versions, vr, ve);
       tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${vr.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
@@ -2352,6 +2383,7 @@ const csLoaded = () => {
         te.appendChild(makePlanNode(tk, pl));
         calcTreeSticky();
       }));
+      addMoveBtns(tool, vr.tasks, tk, te);
       tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${tk.name}" を削除してもよろしいですか？`)) return;
         // データから削除, ガントチャート更新
@@ -2411,6 +2443,7 @@ const csLoaded = () => {
       isPlanningLabel.textContent = "PlanMode";
       isPlanning.appendChild(isPlanningLabel);
       tool.appendChild(isPlanning);
+      addMoveBtns(tool, tk.plans, pl, box);
       // 削除ボタン
       tool.appendChild(addDeleteBtn(() => {
         if (!confirm(`"${pl.name}" を削除してもよろしいですか？`)) return;
@@ -4372,4 +4405,3 @@ const csLoaded = () => {
   </script>
 </body>
 </html>
-
