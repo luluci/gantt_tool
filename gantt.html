@@ -274,7 +274,7 @@
     }
     .inputPanePlan {
       margin: 4px;
-      padding: 6px;
+      padding: 4px 6px;
       border: 1px solid #ddd;
       border-radius: 4px;
     }
@@ -284,19 +284,26 @@
     .inputPanePlanHeader {
       padding: 0;
     }
+    .inputPanePlan .planFields {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 11px;
+      margin: 0;
+    }
+
     .inputPanePlan table.hourTable {
-      width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
     }
     .inputPanePlan table.hourTable tr.hourTableHeaderRow th.hourTableHeaderLabel {
-      width: 50px;
+      width: 5em;
       padding: 2px 4px;
       background: #eee;
       border: 1px solid var(--border);
     }
-    .inputPanePlan table.hourTable tr.hourTableHeaderRow th {
-      width: 30px;
+    .inputPanePlan table.hourTable tr.hourTableHeaderRow th.hourTableHeaderPhase {
+      width: 4em;
       padding: 2px 4px;
       background: #eee;
       border: 1px solid var(--border);
@@ -325,9 +332,8 @@
     }
 
     .dateTable {
-      width: 100%;
       border-collapse: collapse;
-      margin: 4px 0;
+      table-layout: fixed;
     }
     .dateTable th, .dateTable td {
       border: 1px solid var(--border);
@@ -338,18 +344,23 @@
       background: #eee;
       font-weight: bold;
     }
-    .dateTable input {
-      width: 100%;
-      box-sizing: border-box;
-      font-size: 12px;
-    }
     .dateTable .dateTableHeader {
-      width: 50px;
       text-align: center;
       border: 1px solid var(--border);
       padding: 2px 4px;
       background: #eee;
       font-weight: bold;
+    }
+    .dateTable th.dateTableHeader {
+      width: 5em;
+    }
+    .dateTable td.dateTableHeader {
+      width: 3em;
+    }
+    .dateTable td input[type="date"] {
+      width: 8em;
+      box-sizing: border-box;
+      font-size: 12px;
     }
 
     #resizer {
@@ -684,7 +695,6 @@
     button { cursor: pointer; }
     .treeRow { background: #fff; }
     .indent { padding-left: 6px; }
-    .planFields { display: flex; flex-direction: column; gap: 6px; font-size: 11px; margin: 4px 0 4px 4px; }
     .planRowH { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 8px; }
     .planRowH label { display: flex; flex-direction: column; gap: 1px; font-size: 10px; white-space: nowrap; }
     .planRowH input[type="number"] {
@@ -2430,19 +2440,34 @@ const csLoaded = () => {
       box.addEventListener("focusin", selectPlanInLeftPane);
       box.addEventListener("click", selectPlanInLeftPane);
 
-      // 終了日dom更新ハンドラ
-      const updatePlannedEndDom = () => {
-        const inp = fields.querySelector('input[data-field="plannedEnd"]');
-        if (inp) inp.value = pl.plannedEnd || "";
-      };
+      function addMiniRow() {
+        const row = document.createElement("div");
+        row.className = "planRowH";
+        fields.appendChild(row);
+        return row;
+      }
+      function addLabeled(row, label, el) {
+        const lab = document.createElement("label");
+        lab.innerHTML = "<span>" + label + "</span>";
+        lab.appendChild(el);
+        row.appendChild(lab);
+      }
+
+      // table定義
+      const rowHour = addMiniRow();
+
       // 開始日と終了日をまとめたテーブル
       {
+        // 終了日dom更新ハンドラ
+        const updatePlannedEndDom = () => {
+          const inp = fields.querySelector('input[data-field="plannedEnd"]');
+          if (inp) inp.value = pl.plannedEnd || "";
+        };
         const dateTable = document.createElement("table");
         dateTable.className = "dateTable";
         // ヘッダー行
         const headerRow = document.createElement("tr");
         const headerLabel = document.createElement("th");
-        headerLabel.className = "dateTableHeader";
         headerRow.appendChild(headerLabel);
         const startHeader = document.createElement("th");
         startHeader.className = "dateTableHeader";
@@ -2506,26 +2531,10 @@ const csLoaded = () => {
         actualEndCell.appendChild(aE);
         actualRow.appendChild(actualEndCell);
         dateTable.appendChild(actualRow);
-        fields.appendChild(dateTable);
+        rowHour.appendChild(dateTable);
       }
-
-      function addMiniRow() {
-        const row = document.createElement("div");
-        row.className = "planRowH";
-        fields.appendChild(row);
-        return row;
-      }
-      function addLabeled(row, label, el) {
-        const lab = document.createElement("label");
-        lab.innerHTML = "<span>" + label + "</span>";
-        lab.appendChild(el);
-        row.appendChild(lab);
-      }
-
 
       // phaseごとの工数入力（allは集計用で編集不可）
-      // tableで構築。
-      const rowHour = addMiniRow();
       // 工数入力用のテーブルを作成
       const hourTable = document.createElement("table");
       hourTable.className = "hourTable";
