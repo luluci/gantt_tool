@@ -2992,15 +2992,15 @@ const csLoaded = () => {
 
   function planCellInteractionMode(pl, dateStr, localX, cellWidth, datesOverride, cellKind) {
     const blk = contiguousBlock(pl, dateStr, state, datesOverride, cellKind);
-    if (!cellIsOn(pl, dateStr, cellKind)) return "click";
-    if (dateStr === blk.start && localX < PLAN_CELL_EDGE_PX) return "resize-left";
-    if (dateStr === blk.end && localX > cellWidth - PLAN_CELL_EDGE_PX) return "resize-right";
-    return "move";
+    if (!cellIsOn(pl, dateStr, cellKind)) return MOUSE_EV_MODE_CLICK;
+    if (dateStr === blk.start && localX < PLAN_CELL_EDGE_PX) return MOUSE_EV_MODE_RESIZE_LEFT;
+    if (dateStr === blk.end && localX > cellWidth - PLAN_CELL_EDGE_PX) return MOUSE_EV_MODE_RESIZE_RIGHT;
+    return MOUSE_EV_MODE_MOVE;
   }
 
   function cursorForPlanCellMode(mode) {
-    if (mode === "resize-left" || mode === "resize-right") return "ew-resize";
-    if (mode === "move") return "move";
+    if (mode === MOUSE_EV_MODE_RESIZE_LEFT || mode === MOUSE_EV_MODE_RESIZE_RIGHT) return "ew-resize";
+    if (mode === MOUSE_EV_MODE_MOVE) return "move";
     return "";
   }
 
@@ -3931,7 +3931,7 @@ const csLoaded = () => {
       window.removeEventListener("pointerup", onUp);
       const dg = state.drag;
       if (dg && pln) {
-        if (dg.mode === "click" && !dg.dragMoved && pln) {
+        if (dg.mode === MOUSE_EV_MODE_CLICK && !dg.dragMoved && pln) {
           const plnCells = getCellsByKind(pln, dg.cellKind);
           if (!cellIsOn(pln, ds, dg.cellKind)) {
             // セルがオフ->オン:稼働率はプラン全体の稼働率をセット
@@ -3949,7 +3949,7 @@ const csLoaded = () => {
             refreshManhoursRowsDom([ds]);
             if (dg.cellKind === cellKindPlan && shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
-        } else if (dg.mode === "move" && !dg.dragMoved && cellIsOn(pln, ds, dg.cellKind)) {
+        } else if (dg.mode === MOUSE_EV_MODE_MOVE && !dg.dragMoved && cellIsOn(pln, ds, dg.cellKind)) {
           // セル移動なし:クリックのみ:稼働率処理
           inputCellUtil(pln, ds, dg.cellKind);
           recomputeAllPhaseFromCells(pln);
@@ -3998,7 +3998,7 @@ const csLoaded = () => {
     const nextCells = cloneCells(dg.orig || {});
     let changed = false;
 
-    if (dg.mode === "move") {
+    if (dg.mode === MOUSE_EV_MODE_MOVE) {
       const targets = [];
       for (let di = startIdx; di <= endIdx; di++) {
         const k = dates[di];
@@ -4040,7 +4040,7 @@ const csLoaded = () => {
         }
       }
       changed = step !== 0;
-    } else if (dg.mode === "resize-left") {
+    } else if (dg.mode === MOUSE_EV_MODE_RESIZE_LEFT) {
       const si = startIdx;
       const ei = endIdx;
       if (step > 0) {
@@ -4068,7 +4068,7 @@ const csLoaded = () => {
         }
       }
       changed = step !== 0;
-    } else if (dg.mode === "resize-right") {
+    } else if (dg.mode === MOUSE_EV_MODE_RESIZE_RIGHT) {
       const si = startIdx;
       const ei = endIdx;
       if (step < 0) {
