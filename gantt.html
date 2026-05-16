@@ -2985,6 +2985,11 @@ const csLoaded = () => {
     return { start: dates[s], end: dates[e], startIdx: s, endIdx: e };
   }
 
+  const MOUSE_EV_MODE_CLICK = 1;
+  const MOUSE_EV_MODE_MOVE = 2;
+  const MOUSE_EV_MODE_RESIZE_LEFT = 3;
+  const MOUSE_EV_MODE_RESIZE_RIGHT = 4;
+
   function planCellInteractionMode(pl, dateStr, localX, cellWidth, datesOverride, cellKind) {
     const blk = contiguousBlock(pl, dateStr, state, datesOverride, cellKind);
     if (!cellIsOn(pl, dateStr, cellKind)) return "click";
@@ -3879,6 +3884,9 @@ const csLoaded = () => {
     const blk = contiguousBlock(pl, ds, state, dates, cellKind);
     const mode = planCellInteractionMode(pl, ds, x, rect.width, dates, cellKind);
     const srcCells = getCellsByKind(pl, cellKind);
+    const startCell = srcCells[ds];
+    const startHasUtil = !!(startCell?.util?.value);
+    const startUtil = startCell?.util?.value || pl.utilization;
     state.drag = {
       mode,
       planId: pl.id,
@@ -3886,6 +3894,8 @@ const csLoaded = () => {
       startDate: ds,
       block: blk,
       startX: e.clientX,
+      startHasUtil,
+      startUtil,
       orig: cloneCells(srcCells),
       draftCells: cloneCells(srcCells),
       frozenDates: dates.slice(),
@@ -4051,6 +4061,7 @@ const csLoaded = () => {
           let nextCell = nextCells[dates[addIdx]];
           if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
           nextCell.util = {};
+          if (dg.startHasUtil) nextCell.util.value = dg.startUtil;
           nextCells[dates[addIdx]] = nextCell;
 
           need--;
@@ -4078,6 +4089,7 @@ const csLoaded = () => {
           let nextCell = nextCells[dates[addIdx]];
           if (!nextCell || typeof nextCell !== "object" || nextCell === true) nextCell = {};
           nextCell.util = {};
+          if (dg.startHasUtil) nextCell.util.value = dg.startUtil;
           nextCells[dates[addIdx]] = nextCell;
           
           need--;
