@@ -3864,6 +3864,7 @@ const csLoaded = () => {
     const td = ganttVScroll.querySelector('td.daycell[data-plan-id="' + plan.id + '"][data-date="' + ds + '"][data-cell-kind="' + kind + '"]');
     const spn = td.querySelector('span');
     const curText = spn.textContent;
+    let canceled = false;
     spn.textContent = String(curU);
     spn.contentEditable = "true";
     spn.focus();
@@ -3882,6 +3883,11 @@ const csLoaded = () => {
       //
       spn.removeEventListener("blur", onChange);
       spn.removeEventListener("keydown", onKey);
+      // 変化なしでキャンセル
+      if (canceled) {
+        spn.contentEditable = "false";
+        return;
+      }
       // 空白で0扱い
       if (new_txt === "") {
         val = 0;
@@ -3914,6 +3920,7 @@ const csLoaded = () => {
         onChange();
       } else if (e.key === "Escape") {
         spn.textContent = curText;
+        canceled = true;
         spn.contentEditable = "false";
       }
     }
