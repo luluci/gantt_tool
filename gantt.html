@@ -3364,7 +3364,22 @@ const csLoaded = () => {
     });
     
     thead.appendChild(totalManhoursRow);
-
+    if (state.manhoursExpanded && Array.isArray(state.caseFilter) && state.caseFilter.length >= 2) {
+      const selectedCases = state.caseFilter
+        .map((id) => state.data.cases.find((c) => c.id === id))
+        .filter((c) => !!c);
+      if (selectedCases.length >= 2) {
+        const selectedCaseLabel = selectedCases.map((c) => c.name || c.id).join(" + ");
+        const selectedCaseTotalRow = createManhoursRow(
+          "Case: " + selectedCaseLabel,
+          (pl) => state.caseFilter.includes(pl.caseId || ""),
+          0
+        );
+        selectedCaseTotalRow.className += " manhoursCaseDetailRow";
+        selectedCaseTotalRow.dataset.mhKind = "caseSelectedTotal";
+        thead.appendChild(selectedCaseTotalRow);
+      }
+    }
     // Case別の集計行
     state.data.cases.filter(caseMatchesCaseFilter).forEach((cse) => {
       // Case別総合行
