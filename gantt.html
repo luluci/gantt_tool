@@ -880,6 +880,7 @@ const csLoaded = () => {
     if (!Array.isArray(d.phases)) d.phases = ["all"];
     if (!d.phases.includes("all")) d.phases = ["all"].concat(d.phases.filter((p) => p !== "all"));
     if (!Array.isArray(d.cases)) d.cases = [];
+    if (!Array.isArray(d.caseFilter)) d.caseFilter = [];
     if (!Array.isArray(d.members)) d.members = [];
     if (!Array.isArray(d.statuses)) d.statuses = [{ id: "st_open", name: "Open" }];
     if (!Array.isArray(d.commonHolidays)) d.commonHolidays = [];
@@ -1596,6 +1597,9 @@ const csLoaded = () => {
       ? window.__GANTT_DATA__
       : emptyData();
     state.data = normalizeLoaded(raw);
+    state.caseFilter = Array.isArray(state.data.caseFilter) ? state.data.caseFilter.slice() : [];
+    state.caseFilter = state.caseFilter.filter((id) => state.data.cases.some((c) => c.id === id));
+    state.data.caseFilter = state.caseFilter.slice();
     const viewerMode = window.__GANTT_VIEWER_MODE__ || false;
     if (viewerMode) {
       state.inputPaneVisible = false;
@@ -1941,7 +1945,11 @@ const csLoaded = () => {
 
     const cs = mkListbox("selCase", d.cases.map((c) => ({ value: c.id, label: c.name || c.id })), {
       label: "case",
-      onChange: (vals) => { state.caseFilter = vals; renderAll(); },
+      onChange: (vals) => {
+        state.caseFilter = vals;
+        state.data.caseFilter = vals.slice();
+        renderGantt();
+      },
     });
     Array.from(cs.sel.options).forEach((o) => {
       o.selected = state.caseFilter && state.caseFilter.includes(o.value);
@@ -1972,6 +1980,7 @@ const csLoaded = () => {
       const pick = Array.from(cs.sel.selectedOptions).map((x) => x.value);
       d.cases = d.cases.filter((c) => !pick.includes(c.id));
       state.caseFilter = (state.caseFilter || []).filter((id) => d.cases.some((c) => c.id === id));
+      state.data.caseFilter = state.caseFilter.slice();
       markDirty(state, true);
       renderAll();
     });
