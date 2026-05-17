@@ -1288,6 +1288,7 @@ const csLoaded = () => {
   }
 
   function totalManhoursByCaseDomainMember(state, dates) {
+    const caseFilterCount = state.caseFilter.length;
     // date/case/domain/memberの階層で人工集計
     let totalHours = {};
     (dates || []).forEach((ds) => {
@@ -1308,14 +1309,34 @@ const csLoaded = () => {
                 if (!dateNode.detail[pl.caseId]) dateNode.detail[pl.caseId] = { total: 0, detail: {} };
                 const caseNode = dateNode.detail[pl.caseId];
                 caseNode.total += mh;
+                // フィルタcase集計
+                let filterCaseNode = null;
+                if (caseFilterCount >= 2) {
+                  if (!dateNode.caseFilter) dateNode.caseFilter = { total: 0, detail: {} };
+                  filterCaseNode = dateNode.caseFilter;
+                  filterCaseNode.total += mh;
+                }
                 // domain集計
                 if (!caseNode.detail[dom.id]) caseNode.detail[dom.id] = { total: 0, detail: {} };
                 const domainNode = caseNode.detail[dom.id];
                 domainNode.total += mh;
+                // フィルタcase/domain集計
+                let filterDomainNode = null;
+                if (!!filterCaseNode) {
+                  if (!filterCaseNode.detail[dom.id]) filterCaseNode.detail[dom.id] = { total: 0, detail: {} };
+                  filterDomainNode = filterCaseNode.detail[dom.id];
+                  filterDomainNode.total += mh;
+                }
                 // member集計
                 if (!domainNode.detail[pl.ownerId]) domainNode.detail[pl.ownerId] = { total: 0 };
                 const memberNode = domainNode.detail[pl.ownerId];
                 memberNode.total += mh;
+                // フィルタcase/domain/member集計
+                if (!!filterDomainNode) {
+                  if (!filterDomainNode.detail[pl.ownerId]) filterDomainNode.detail[pl.ownerId] = { total: 0 };
+                  const filterMemberNode = filterDomainNode.detail[pl.ownerId];
+                  filterMemberNode.total += mh;
+                }
               });
             });
           });
@@ -1332,7 +1353,6 @@ const csLoaded = () => {
     rows.forEach((row) => {
       const kind = row.dataset.mhKind || "";
       const caseId = row.dataset.caseId || "";
-      const caseIds = (row.dataset.caseIds || "").split(",").filter((id) => !!id);
       const domainId = row.dataset.domainId || "";
       const memberId = row.dataset.memberId || "";
       row.querySelectorAll("td.manhourCell[data-date]").forEach((td) => {
@@ -1346,10 +1366,8 @@ const csLoaded = () => {
             const caseNode = dateNode.detail[caseId];
             if (caseNode) mh = caseNode.total;
           } else if (kind === "caseSelectedTotal") {
-            caseIds.forEach((id) => {
-              const caseNode = dateNode.detail[id];
-              if (caseNode) mh += caseNode.total;
-            });
+            const caseNode = dateNode.caseFilter;
+            if (caseNode) mh = caseNode.total;
           } else if (kind === "domain") {
             const caseNode = dateNode.detail[caseId];
             if (caseNode) {
@@ -1357,12 +1375,11 @@ const csLoaded = () => {
               if (domainNode) mh = domainNode.total;
             }
           } else if (kind === "domainSelectedTotal") {
-            caseIds.forEach((id) => {
-              const caseNode = dateNode.detail[id];
-              if (!caseNode) return;
+            const caseNode = dateNode.caseFilter;
+            if (caseNode) {
               const domainNode = caseNode.detail[domainId];
-              if (domainNode) mh += domainNode.total;
-            });
+              if (domainNode) mh = domainNode.total;
+            }
           } else if (kind === "member") {
             const caseNode = dateNode.detail[caseId];
             if (caseNode) {
@@ -1373,14 +1390,14 @@ const csLoaded = () => {
               }
             }
           } else if (kind === "memberSelectedTotal") {
-            caseIds.forEach((id) => {
-              const caseNode = dateNode.detail[id];
-              if (!caseNode) return;
+            const caseNode = dateNode.caseFilter;
+            if (caseNode) {
               const domainNode = caseNode.detail[domainId];
-              if (!domainNode) return;
-              const memberNode = domainNode.detail[memberId];
-              if (memberNode) mh += memberNode.total;
-            });
+              if (domainNode) {
+                const memberNode = domainNode.detail[memberId];
+                if (memberNode) mh = memberNode.total;
+              }
+            }
           } else {
             mh = dateNode.total;
           }
@@ -3393,84 +3410,87 @@ const csLoaded = () => {
     });
     
     thead.appendChild(totalManhoursRow);
-    if (state.manhoursExpanded && Array.isArray(state.caseFilter) && state.caseFilter.length >= 2) {
-      const selectedCases = state.caseFilter
-        .map((id) => state.data.cases.find((c) => c.id === id))
-        .filter((c) => !!c);
-      if (selectedCases.length >= 2) {
-        const selectedCaseIds = selectedCases.map((c) => c.id);
-        const selectedCaseLabel = selectedCases.map((c) => c.name || c.id).join(" + ");
-        const selectedCaseKey = selectedCaseIds.join("|");
-        if (state.caseExpanded[selectedCaseKey] == null) state.caseExpanded[selectedCaseKey] = true;
-        const isSelectedCaseExpanded = state.caseExpanded[selectedCaseKey] !== false;
 
-        const selectedCaseTotalRow = createManhoursRow(
-          "Case: " + selectedCaseLabel + " (" + (isSelectedCaseExpanded ? "▼" : "▶") + ")",
-          (pl) => selectedCaseIds.includes(pl.caseId || ""),
-          0
-        );
-        selectedCaseTotalRow.className += " manhoursCaseDetailRow";
-        selectedCaseTotalRow.dataset.mhKind = "caseSelectedTotal";
-        selectedCaseTotalRow.dataset.caseIds = selectedCaseIds.join(",");
-        const selectedCaseLabelCell = selectedCaseTotalRow.querySelector(".manhoursHead");
-        if (selectedCaseLabelCell) {
-          selectedCaseLabelCell.addEventListener("click", (e) => {
-            e.stopPropagation();
-            state.caseExpanded[selectedCaseKey] = !isSelectedCaseExpanded;
-            renderGantt();
+    // case別集計行
+    // 人工集計表示展開設定のときに実施
+    if (state.manhoursExpanded) {
+      if (Array.isArray(state.caseFilter) && state.caseFilter.length >= 2) {
+        const selectedCases = state.caseFilter
+          .map((id) => state.data.cases.find((c) => c.id === id))
+          .filter((c) => !!c);
+        if (selectedCases.length >= 2) {
+          const selectedCaseIds = selectedCases.map((c) => c.id);
+          const selectedCaseLabel = selectedCases.map((c) => c.name || c.id).join(" + ");
+          const selectedCaseKey = selectedCaseIds.join("|");
+          if (state.caseExpanded[selectedCaseKey] == null) state.caseExpanded[selectedCaseKey] = true;
+          const isSelectedCaseExpanded = state.caseExpanded[selectedCaseKey] !== false;
+
+          const selectedCaseTotalRow = createManhoursRow(
+            "Case: " + selectedCaseLabel + " (" + (isSelectedCaseExpanded ? "▼" : "▶") + ")",
+            (pl) => selectedCaseIds.includes(pl.caseId || ""),
+            0
+          );
+          selectedCaseTotalRow.className += " manhoursCaseDetailRow";
+          selectedCaseTotalRow.dataset.mhKind = "caseSelectedTotal";
+          // selectedCaseTotalRow.dataset.caseIds = selectedCaseIds.join(",");
+          const selectedCaseLabelCell = selectedCaseTotalRow.querySelector(".manhoursHead");
+          if (selectedCaseLabelCell) {
+            selectedCaseLabelCell.addEventListener("click", (e) => {
+              e.stopPropagation();
+              state.caseExpanded[selectedCaseKey] = !isSelectedCaseExpanded;
+              renderGantt();
+            });
+          }
+          thead.appendChild(selectedCaseTotalRow);
+
+          state.data.domains.forEach((dom) => {
+            const selectedDomainKey = "selected::" + selectedCaseKey + "::" + dom.id;
+            if (state.domainExpanded[selectedDomainKey] == null) state.domainExpanded[selectedDomainKey] = false;
+            const isSelectedDomainExpanded = state.domainExpanded[selectedDomainKey] !== false;
+            if (isSelectedCaseExpanded) {
+              const selectedDomRow = createManhoursRow(
+                "  └ " + dom.name + " (" + (isSelectedDomainExpanded ? "▼" : "▶") + ")",
+                (pl, d) => selectedCaseIds.includes(pl.caseId || "") && d.id === dom.id,
+                1
+              );
+              selectedDomRow.className += " manhoursDomainDetailRow";
+              selectedDomRow.dataset.mhKind = "domainSelectedTotal";
+              // selectedDomRow.dataset.caseIds = selectedCaseIds.join(",");
+              selectedDomRow.dataset.domainId = dom.id;
+              const selectedDomLabelCell = selectedDomRow.querySelector(".manhoursHead");
+              if (selectedDomLabelCell) {
+                selectedDomLabelCell.addEventListener("click", (e) => {
+                  e.stopPropagation();
+                  state.domainExpanded[selectedDomainKey] = !isSelectedDomainExpanded;
+                  renderGantt();
+                });
+              }
+              thead.appendChild(selectedDomRow);
+
+              if (isSelectedDomainExpanded) {
+                state.data.members.forEach((mem) => {
+                  const selectedMemRow = createManhoursRow(
+                    "    └ " + mem.name,
+                    (pl, d) => selectedCaseIds.includes(pl.caseId || "") && d.id === dom.id && pl.ownerId === mem.id,
+                    2
+                  );
+                  selectedMemRow.className += " manhoursMemberDetailRow";
+                  selectedMemRow.dataset.mhKind = "memberSelectedTotal";
+                  // selectedMemRow.dataset.caseIds = selectedCaseIds.join(",");
+                  selectedMemRow.dataset.domainId = dom.id;
+                  selectedMemRow.dataset.memberId = mem.id;
+                  thead.appendChild(selectedMemRow);
+                });
+              }
+            }
           });
         }
-        thead.appendChild(selectedCaseTotalRow);
-
-        state.data.domains.forEach((dom) => {
-          const selectedDomainKey = "selected::" + selectedCaseKey + "::" + dom.id;
-          if (state.domainExpanded[selectedDomainKey] == null) state.domainExpanded[selectedDomainKey] = false;
-          const isSelectedDomainExpanded = state.domainExpanded[selectedDomainKey] !== false;
-          if (isSelectedCaseExpanded) {
-            const selectedDomRow = createManhoursRow(
-              "  └ " + dom.name + " (" + (isSelectedDomainExpanded ? "▼" : "▶") + ")",
-              (pl, d) => selectedCaseIds.includes(pl.caseId || "") && d.id === dom.id,
-              1
-            );
-            selectedDomRow.className += " manhoursDomainDetailRow";
-            selectedDomRow.dataset.mhKind = "domainSelectedTotal";
-            selectedDomRow.dataset.caseIds = selectedCaseIds.join(",");
-            selectedDomRow.dataset.domainId = dom.id;
-            const selectedDomLabelCell = selectedDomRow.querySelector(".manhoursHead");
-            if (selectedDomLabelCell) {
-              selectedDomLabelCell.addEventListener("click", (e) => {
-                e.stopPropagation();
-                state.domainExpanded[selectedDomainKey] = !isSelectedDomainExpanded;
-                renderGantt();
-              });
-            }
-            thead.appendChild(selectedDomRow);
-
-            if (isSelectedDomainExpanded) {
-              state.data.members.forEach((mem) => {
-                const selectedMemRow = createManhoursRow(
-                  "    └ " + mem.name,
-                  (pl, d) => selectedCaseIds.includes(pl.caseId || "") && d.id === dom.id && pl.ownerId === mem.id,
-                  2
-                );
-                selectedMemRow.className += " manhoursMemberDetailRow";
-                selectedMemRow.dataset.mhKind = "memberSelectedTotal";
-                selectedMemRow.dataset.caseIds = selectedCaseIds.join(",");
-                selectedMemRow.dataset.domainId = dom.id;
-                selectedMemRow.dataset.memberId = mem.id;
-                thead.appendChild(selectedMemRow);
-              });
-            }
-          }
-        });
       }
-    }
-    // Case別の集計行
-    state.data.cases.filter(caseMatchesCaseFilter).forEach((cse) => {
-      // Case別総合行
-      const isCaseExpanded = state.caseExpanded[cse.id] !== false;
-      
-      if (state.manhoursExpanded) {
+      // Case別の集計行
+      state.data.cases.filter(caseMatchesCaseFilter).forEach((cse) => {
+        // Case別総合行
+        const isCaseExpanded = state.caseExpanded[cse.id] !== false;
+
         // case集計作成
         const caseRow = createManhoursRow("Case: " + cse.name + " (" + (isCaseExpanded ? "▼" : "▶") + ")", (pl) => pl.caseId === cse.id, 0);
         caseRow.className += " manhoursCaseDetailRow";
@@ -3518,24 +3538,22 @@ const csLoaded = () => {
             thead.appendChild(domRow);
             
             // Member別の集計行
-            state.data.members.forEach((mem) => {
-
               // Member行の表示制御：総合が展開 AND Case行が展開 AND Domain行が展開
-              if (isDomainExpanded) {
+            if (isDomainExpanded) {
+              state.data.members.forEach((mem) => {
                 const memRow = createManhoursRow("    └ " + mem.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id && pl.ownerId === mem.id, 2);
                 memRow.className += " manhoursMemberDetailRow";
                 memRow.dataset.mhKind = "member";
                 memRow.dataset.caseId = cse.id;
                 memRow.dataset.domainId = dom.id;
                 memRow.dataset.memberId = mem.id;
-                
                 thead.appendChild(memRow);
-              }
-            });
+              });
+            }
           }
         });
-      }
-    });
+      });
+    }
 
     function addDPVRow(label, target, kind) {
       const tr = document.createElement("tr");
