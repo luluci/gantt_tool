@@ -57,13 +57,27 @@
     html, body { height: 100%; margin: 0; font-family: var(--font); font-size: 13px; }
     #app { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     #topPane {
-      flex: 0 0 var(--topH, auto); background: var(--bg-top); border-bottom: 1px solid var(--border);
-      padding: 8px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; overflow: auto;
+      background: var(--bg-top);
+      border-bottom: 1px solid var(--border);
+      padding: 8px;
+      
+      flex: 0 0 var(--topH, auto);
+      display: flex;
+      gap: 10px;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      overflow: auto;
     }
     #topPane.hidden {
       display: none;
     }
-    .topBlock { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+    .topBlock {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 140px;
+      flex-shrink: 0;
+    }
     .topBlock label { font-weight: 600; font-size: 11px; color: #333; }
     .listbox {
       height: 110px; min-width: 120px; border: 1px solid var(--border); padding: 2px;
