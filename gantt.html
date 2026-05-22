@@ -828,6 +828,25 @@ const csLoaded = () => {
 
   /** plan セル内の左右端判定（ドラッグの resize と同じ幅） */
   const PLAN_CELL_EDGE_PX = 8;
+  const AGG_PATTERN_CDM = "case/domain/member";
+  const AGG_PATTERN_CMD = "case/member/domain";
+  const AGG_PATTERN_CMP = "case/member/project";
+  const AGG_PATTERN_CDPU = "case/domain/project/member";
+  const AGGREGATION_PATTERNS = [AGG_PATTERN_CDM, AGG_PATTERN_CMD, AGG_PATTERN_CMP, AGG_PATTERN_CDPU];
+
+  // 集計対象アイテム定義
+  const TOTAL_KIND_DOMAIN = 1;
+  const TOTAL_KIND_PROJECT = 2;
+  const TOTAL_KIND_VERSION = 3;
+  const TOTAL_KIND_PLAN = 4;
+  const TOTAL_KIND_CASE = 5;
+  const TOTAL_KIND_MEMBER = 6;
+  // 集計パターン定義
+  const TOTAL_PATTERN_CDM = [TOTAL_KIND_CASE, TOTAL_KIND_DOMAIN, TOTAL_KIND_MEMBER];
+
+  function normalizeAggregationPattern(v) {
+    return AGGREGATION_PATTERNS.includes(v) ? v : AGG_PATTERN_CDM;
+  }
 
   function emptyData() {
     return {
@@ -838,6 +857,7 @@ const csLoaded = () => {
       commonHolidays: [],
       milestones: {},
       domains: [],
+      aggregationPattern: AGG_PATTERN_CDM,
     };
   }
 
@@ -886,6 +906,7 @@ const csLoaded = () => {
     if (!Array.isArray(d.commonHolidays)) d.commonHolidays = [];
     if (!d.milestones || typeof d.milestones !== "object") d.milestones = {};
     if (!Array.isArray(d.domains)) d.domains = [];
+    d.aggregationPattern = normalizeAggregationPattern(d.aggregationPattern);
     d.domains.forEach((dom) => {
       dom.cells = dom.cells && typeof dom.cells === "object" ? dom.cells : {};
       dom.projects = dom.projects || [];
@@ -1302,7 +1323,7 @@ const csLoaded = () => {
     return touched;
   }
 
-  function totalManhoursByCaseDomainMember(state, dates) {
+  function totalManhoursByPattern(state, dates, ptns) {
     const caseFilterCount = state.caseFilter.length;
     // date/case/domain/memberの階層で人工集計
     let totalHours = {};
@@ -1314,44 +1335,63 @@ const csLoaded = () => {
               (tk.plans || []).forEach((pl) => {
                 // フィルタケア
                 if (!planMatchesCaseFilter(pl)) return;
-                // 集計
+                // 対象日付の稼働ManHourを取得
                 const mh = dayHoursAll(pl, ds);
                 // 稼働日でなければスキップ
                 if (mh == 0) return;
+
+                // ルート要素作成
                 if (!totalHours[ds]) totalHours[ds] = { total: 0, detail: {} };
                 const dateNode = totalHours[ds];
-                // case集計
-                if (!dateNode.detail[pl.caseId]) dateNode.detail[pl.caseId] = { total: 0, detail: {} };
-                const caseNode = dateNode.detail[pl.caseId];
-                caseNode.total += mh;
-                // フィルタcase集計
-                let filterCaseNode = null;
-                if (caseFilterCount >= 2) {
-                  if (!dateNode.caseFilter) dateNode.caseFilter = { total: 0, detail: {} };
-                  filterCaseNode = dateNode.caseFilter;
-                  filterCaseNode.total += mh;
-                }
-                // domain集計
-                if (!caseNode.detail[dom.id]) caseNode.detail[dom.id] = { total: 0, detail: {} };
-                const domainNode = caseNode.detail[dom.id];
-                domainNode.total += mh;
-                // フィルタcase/domain集計
-                let filterDomainNode = null;
-                if (!!filterCaseNode) {
-                  if (!filterCaseNode.detail[dom.id]) filterCaseNode.detail[dom.id] = { total: 0, detail: {} };
-                  filterDomainNode = filterCaseNode.detail[dom.id];
-                  filterDomainNode.total += mh;
-                }
-                // member集計
-                if (!domainNode.detail[pl.ownerId]) domainNode.detail[pl.ownerId] = { total: 0 };
-                const memberNode = domainNode.detail[pl.ownerId];
-                memberNode.total += mh;
-                // フィルタcase/domain/member集計
-                if (!!filterDomainNode) {
-                  if (!filterDomainNode.detail[pl.ownerId]) filterDomainNode.detail[pl.ownerId] = { total: 0 };
-                  const filterMemberNode = filterDomainNode.detail[pl.ownerId];
-                  filterMemberNode.total += mh;
-                }
+
+                // パターンに従い階層化して集計
+                let tgtNode = dateNode;
+                let filterNode = caseFilterCount >= 2 ? dateNode : null;
+                ptns.forEach((kind) => {
+                  switch (kind) {
+                    case TOTAL_KIND_CASE:
+                      // caseチェック
+                      if (!tgtNode.detail[pl.caseId]) tgtNode.detail[pl.caseId] = { total: 0, detail: {} };
+                      // フィルタcase集計
+                      if (caseFilterCount >= 2) {
+                        if (!tgtNode.caseFilter) tgtNode.caseFilter = { total: 0, detail: {} };
+                        filterNode = tgtNode.caseFilter;
+                        filterNode.total += mh;
+                      }
+                      // case集計
+                      tgtNode = tgtNode.detail[pl.caseId];
+                      tgtNode.total += mh;
+                      break;
+
+                    case TOTAL_KIND_DOMAIN:
+                      // チェック
+                      if (!tgtNode.detail[dom.id]) tgtNode.detail[dom.id] = { total: 0, detail: {} };
+                      // フィルタdomain集計
+                      if (!!filterNode) {
+                        if (!filterNode.detail[dom.id]) filterNode.detail[dom.id] = { total: 0, detail: {} };
+                        filterNode = filterNode.detail[dom.id];
+                        filterNode.total += mh;
+                      }
+                      // domain集計
+                      tgtNode = tgtNode.detail[dom.id];
+                      tgtNode.total += mh;
+                      break;
+
+                    case TOTAL_KIND_MEMBER:
+                      // チェック
+                      if (!tgtNode.detail[pl.ownerId]) tgtNode.detail[pl.ownerId] = { total: 0 };
+                      // フィルタmember集計
+                      if (!!filterNode) {
+                        if (!filterNode.detail[pl.ownerId]) filterNode.detail[pl.ownerId] = { total: 0 };
+                        filterNode = filterNode.detail[pl.ownerId];
+                        filterNode.total += mh;
+                      }
+                      // member集計
+                      tgtNode = tgtNode.detail[pl.ownerId];
+                      tgtNode.total += mh;
+                      break;
+                  }
+                });
               });
             });
           });
@@ -1363,7 +1403,7 @@ const csLoaded = () => {
 
   function refreshManhoursRowsDom(dates) {
     // case/domain/member ごとの工数集計行を更新
-    const totalHours = totalManhoursByCaseDomainMember(state, dates);
+    const totalHours = totalManhoursByPattern(state, dates, TOTAL_PATTERN_CDM);
     const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
     rows.forEach((row) => {
       const kind = row.dataset.mhKind || "";
@@ -1377,13 +1417,13 @@ const csLoaded = () => {
         let mh = 0;
         if (totalHours[ds]) {
           const dateNode = totalHours[ds];
-          if (kind === "case") {
+        if (kind === "case") {
             const caseNode = dateNode.detail[caseId];
             if (caseNode) mh = caseNode.total;
           } else if (kind === "caseSelectedTotal") {
             const caseNode = dateNode.caseFilter;
             if (caseNode) mh = caseNode.total;
-          } else if (kind === "domain") {
+        } else if (kind === "domain") {
             const caseNode = dateNode.detail[caseId];
             if (caseNode) {
               const domainNode = caseNode.detail[domainId];
@@ -1395,7 +1435,7 @@ const csLoaded = () => {
               const domainNode = caseNode.detail[domainId];
               if (domainNode) mh = domainNode.total;
             }
-          } else if (kind === "member") {
+        } else if (kind === "member") {
             const caseNode = dateNode.detail[caseId];
             if (caseNode) {
               const domainNode = caseNode.detail[domainId];
@@ -1413,7 +1453,7 @@ const csLoaded = () => {
                 if (memberNode) mh = memberNode.total;
               }
             }
-          } else {
+        } else {
             mh = dateNode.total;
           }
         }
@@ -1572,6 +1612,7 @@ const csLoaded = () => {
   const state = {
     data: emptyData(),
     caseFilter: [],
+    aggregationPattern: AGG_PATTERN_CDM,
     selectedPlanId: null,
     selectedManhoursRow: null,
     leftPaneWidth: 450,
@@ -1600,6 +1641,8 @@ const csLoaded = () => {
     state.caseFilter = Array.isArray(state.data.caseFilter) ? state.data.caseFilter.slice() : [];
     state.caseFilter = state.caseFilter.filter((id) => state.data.cases.some((c) => c.id === id));
     state.data.caseFilter = state.caseFilter.slice();
+    state.aggregationPattern = normalizeAggregationPattern(state.data.aggregationPattern);
+    state.data.aggregationPattern = state.aggregationPattern;
     const viewerMode = window.__GANTT_VIEWER_MODE__ || false;
     if (viewerMode) {
       state.inputPaneVisible = false;
@@ -1992,6 +2035,33 @@ const csLoaded = () => {
     csBody.appendChild(csBtns);
     cs.wrap.insertBefore(csBody, cs.wrap.lastChild);
     topPane.appendChild(cs.wrap);
+
+    const aggBlock = document.createElement("div");
+    aggBlock.className = "topBlock";
+    const aggLabel = document.createElement("label");
+    aggLabel.textContent = "aggregation";
+    const aggSel = document.createElement("select");
+    aggSel.className = "listbox";
+    aggSel.multiple = false;
+    aggSel.size = AGGREGATION_PATTERNS.length;
+    AGGREGATION_PATTERNS.forEach((p) => {
+      const o = document.createElement("option");
+      o.value = p;
+      o.textContent = p;
+      aggSel.appendChild(o);
+    });
+    aggSel.value = normalizeAggregationPattern(state.data.aggregationPattern);
+    aggSel.addEventListener("change", () => {
+      const next = normalizeAggregationPattern(aggSel.value);
+      if (state.data.aggregationPattern === next && state.aggregationPattern === next) return;
+      state.aggregationPattern = next;
+      state.data.aggregationPattern = next;
+      markDirty(state, true);
+      renderGantt();
+    });
+    aggBlock.appendChild(aggLabel);
+    aggBlock.appendChild(aggSel);
+    topPane.appendChild(aggBlock);
 
     const mem = document.createElement("div");
     mem.className = "topBlock";
@@ -3459,11 +3529,11 @@ const csLoaded = () => {
           const selectedCaseLabelCell = selectedCaseTotalRow.querySelector(".manhoursHead");
           if (selectedCaseLabelCell) {
             selectedCaseLabelCell.addEventListener("click", (e) => {
-              e.stopPropagation();
+            e.stopPropagation();
               state.caseExpanded[selectedCaseKey] = !isSelectedCaseExpanded;
-              renderGantt();
-            });
-          }
+            renderGantt();
+          });
+        }
           thead.appendChild(selectedCaseTotalRow);
 
           state.data.domains.forEach((dom) => {
@@ -3483,15 +3553,15 @@ const csLoaded = () => {
               const selectedDomLabelCell = selectedDomRow.querySelector(".manhoursHead");
               if (selectedDomLabelCell) {
                 selectedDomLabelCell.addEventListener("click", (e) => {
-                  e.stopPropagation();
+                e.stopPropagation();
                   state.domainExpanded[selectedDomainKey] = !isSelectedDomainExpanded;
-                  renderGantt();
-                });
-              }
+                renderGantt();
+              });
+            }
               thead.appendChild(selectedDomRow);
 
               if (isSelectedDomainExpanded) {
-                state.data.members.forEach((mem) => {
+            state.data.members.forEach((mem) => {
                   const selectedMemRow = createManhoursRow(
                     "    └ " + mem.name,
                     (pl, d) => selectedCaseIds.includes(pl.caseId || "") && d.id === dom.id && pl.ownerId === mem.id,
@@ -3523,15 +3593,15 @@ const csLoaded = () => {
         const caseLabelCell = caseRow.querySelector(".manhoursHead");
         if (caseLabelCell) {
           caseLabelCell.addEventListener("click", (e) => {
-            e.stopPropagation();
+                e.stopPropagation();
             state.caseExpanded[cse.id] = !isCaseExpanded;
-            renderGantt();
-          });
-        }
+                renderGantt();
+              });
+            }
         thead.appendChild(caseRow);
         
         // Domain別の集計行
-        state.data.domains.forEach((dom) => {
+              state.data.domains.forEach((dom) => {
           const domRowKey = cse.id + "::" + dom.id;
           if (state.domainExpanded[domRowKey] == null) state.domainExpanded[domRowKey] = false; // 初期値は展開しない
           const isDomainExpanded = state.domainExpanded[domRowKey] !== false;
@@ -3549,14 +3619,14 @@ const csLoaded = () => {
             domRow.dataset.domainId = dom.id;
             
             // Domain行のラベルセルをクリック可能にする
-            const domLabelCell = domRow.querySelector(".manhoursHead");
-            if (domLabelCell) {
-              domLabelCell.addEventListener("click", (e) => {
-                e.stopPropagation();
+          const domLabelCell = domRow.querySelector(".manhoursHead");
+          if (domLabelCell) {
+            domLabelCell.addEventListener("click", (e) => {
+              e.stopPropagation();
                 state.domainExpanded[domRowKey] = !isDomainExpanded;
-                renderGantt();
-              });
-            }
+              renderGantt();
+            });
+          }
             
             thead.appendChild(domRow);
             
@@ -3571,7 +3641,7 @@ const csLoaded = () => {
                 memRow.dataset.domainId = dom.id;
                 memRow.dataset.memberId = mem.id;
                 thead.appendChild(memRow);
-              });
+          });
             }
           }
         });
