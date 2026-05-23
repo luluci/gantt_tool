@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
@@ -1491,57 +1491,6 @@ const csLoaded = () => {
     });
   }
 
-  function refreshManhoursRowsDomOld() {
-    // case/domain/member ごとの工数集計行を更新
-    // 
-    const computeTotalHoursBy = (dateStr, filterFn) => {
-      let totalHours = 0;
-      state.data.domains.forEach((dom) => {
-        (dom.projects || []).forEach((pr) => {
-          (pr.versions || []).forEach((vr) => {
-            (vr.tasks || []).forEach((tk) => {
-              (tk.plans || []).forEach((pl) => {
-                if (!planMatchesCaseFilter(pl) || !filterFn(pl, dom)) return;
-                totalHours += dayHoursAll(pl, dateStr);
-              });
-            });
-          });
-        });
-      });
-      return totalHours;
-    };
-    const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
-    rows.forEach((row) => {
-      const kind = row.dataset.mhKind || "";
-      const caseId = row.dataset.caseId || "";
-      const caseIds = (row.dataset.caseIds || "").split(",").filter((id) => !!id);
-      const domainId = row.dataset.domainId || "";
-      const memberId = row.dataset.memberId || "";
-      row.querySelectorAll("td.manhourCell[data-date]").forEach((td) => {
-        const ds = td.dataset.date || "";
-        if (!ds) return;
-        let totalHours = 0;
-        if (kind === "member") {
-          totalHours = computeTotalHoursBy(ds, (pl) => pl.caseId === caseId);
-        } else if (kind === "case") {
-          totalHours = computeTotalHoursBy(ds, (pl) => pl.caseId === caseId);
-        } else if (kind === "caseSelectedTotal") {
-          totalHours = computeTotalHoursBy(ds, (pl) => caseIds.includes(pl.caseId || ""));
-        } else if (kind === "domain") {
-          totalHours = computeTotalHoursBy(ds, (pl, dom) => pl.caseId === caseId && dom.id === domainId);
-        } else if (kind === "domainSelectedTotal") {
-          totalHours = computeTotalHoursBy(ds, (pl, dom) => caseIds.includes(pl.caseId || "") && dom.id === domainId);
-        } else if (kind === "memberSelectedTotal") {
-          totalHours = computeTotalHoursBy(ds, (pl, dom) => caseIds.includes(pl.caseId || "") && dom.id === domainId && pl.ownerId === memberId);
-        } else {
-          totalHours = computeTotalHoursBy(ds, () => true);
-        }
-        td.textContent = (totalHours / 8).toFixed(1);
-        td.title = totalHours + "hr";
-      });
-    });
-  }
-
   function getDateRange(state) {
     let minD = null, maxD = null;
     const bump = (s) => {
@@ -1652,6 +1601,7 @@ const csLoaded = () => {
     manhoursExpanded: true,
     caseExpanded: {}, // { caseId: boolean }
     domainExpanded: {}, // { caseId::domainId: boolean }
+    memberExpanded: {},
     dirty: false,
     fileHandle: null,
     drag: null,
@@ -3464,7 +3414,33 @@ const csLoaded = () => {
     addDayHeaderRow("calDay", (ds) => ds.slice(8, 10), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state) || todayTypeForDate(ds, state)));
     addDayHeaderRow("calWeek", (ds) => weekdayJp(ds), (ds) => holidayBgColor(holidayTypeForHeaderDate(ds, state) || todayTypeForDate(ds, state)));
 
+    //////////////////////////////////////////////////////////////////////////////
     // 人工数集計行を追加
+    // 総合人工行（クリック可能、集計行の表示非表示を切り替え）
+    const totalManhoursRow = document.createElement("tr");
+    totalManhoursRow.className = "treeRow manhoursRow manhoursHeader";
+    const totalLabelCell = document.createElement("th");
+    totalLabelCell.className = "manhoursHead";
+    totalLabelCell.colSpan = 2;
+    totalLabelCell.textContent = "総合人工 (" + (state.manhoursExpanded ? "▼" : "▶") + ")";
+    totalManhoursRow.appendChild(totalLabelCell);
+    
+    //dates.forEach((ds) => {
+      const td = document.createElement("td");
+      td.className = "manhourCell";
+      // td.dataset.date = ds;
+      td.colSpan = dates.length;
+      td.textContent = "";
+      totalManhoursRow.appendChild(td);
+    //});
+    
+    totalManhoursRow.addEventListener("click", () => {
+      state.manhoursExpanded = !state.manhoursExpanded;
+      renderGantt();
+    });
+    
+    thead.appendChild(totalManhoursRow);
+
     function createManhoursRow(label, filterFn, depth = 0) {
       const tr = document.createElement("tr");
       tr.className = "treeRow manhoursRow";
@@ -3507,173 +3483,300 @@ const csLoaded = () => {
       return tr;
     }
 
-    // 総合人工行（クリック可能、集計行の表示非表示を切り替え）
-    const totalManhoursRow = document.createElement("tr");
-    totalManhoursRow.className = "treeRow manhoursRow manhoursHeader";
-    const totalLabelCell = document.createElement("th");
-    totalLabelCell.className = "manhoursHead";
-    totalLabelCell.colSpan = 2;
-    totalLabelCell.textContent = "総合人工 (" + (state.manhoursExpanded ? "▼" : "▶") + ")";
-    totalManhoursRow.appendChild(totalLabelCell);
-    
-    //dates.forEach((ds) => {
-      const td = document.createElement("td");
-      td.className = "manhourCell";
-      // td.dataset.date = ds;
-      td.colSpan = dates.length;
-      td.textContent = "";
-      totalManhoursRow.appendChild(td);
-    //});
-    
-    totalManhoursRow.addEventListener("click", () => {
-      state.manhoursExpanded = !state.manhoursExpanded;
-      renderGantt();
-    });
-    
-    thead.appendChild(totalManhoursRow);
+    function createManhoursRowBase(label, depth = 0) {
+      const tr = document.createElement("tr");
+      tr.className = "treeRow manhoursRow";
+      const labelCell = document.createElement("th");
+      labelCell.className = "manhoursHead";
+      labelCell.colSpan = 2;
+      labelCell.style.paddingLeft = (8 + depth * 10) + "px";
+      labelCell.textContent = label;
+      tr.appendChild(labelCell);
+      
+      return tr;
+    }
 
-    // case別集計行
-    // 人工集計表示展開設定のときに実施
-    if (state.manhoursExpanded) {
-      if (Array.isArray(state.caseFilter) && state.caseFilter.length >= 2) {
-        const selectedCases = state.caseFilter
-          .map((id) => state.data.cases.find((c) => c.id === id))
-          .filter((c) => !!c);
-        if (selectedCases.length >= 2) {
-          const selectedCaseIds = selectedCases.map((c) => c.id);
-          const selectedCaseLabel = selectedCases.map((c) => c.name || c.id).join(" + ");
-          const selectedCaseKey = selectedCaseIds.join("|");
-          if (state.caseExpanded[selectedCaseKey] == null) state.caseExpanded[selectedCaseKey] = true;
-          const isSelectedCaseExpanded = state.caseExpanded[selectedCaseKey] !== false;
-
-          const selectedCaseTotalRow = createManhoursRow(
-            "Case: " + selectedCaseLabel + " (" + (isSelectedCaseExpanded ? "▼" : "▶") + ")",
-            (pl) => selectedCaseIds.includes(pl.caseId || ""),
-            0
-          );
-          selectedCaseTotalRow.className += " manhoursCaseDetailRow";
-          selectedCaseTotalRow.dataset.mhKind = "caseSelectedTotal";
-          // selectedCaseTotalRow.dataset.caseIds = selectedCaseIds.join(",");
-          const selectedCaseLabelCell = selectedCaseTotalRow.querySelector(".manhoursHead");
-          if (selectedCaseLabelCell) {
-            selectedCaseLabelCell.addEventListener("click", (e) => {
-            e.stopPropagation();
-              state.caseExpanded[selectedCaseKey] = !isSelectedCaseExpanded;
-            renderGantt();
-          });
-        }
-          thead.appendChild(selectedCaseTotalRow);
-
-          state.data.domains.forEach((dom) => {
-            const selectedDomainKey = "selected::" + selectedCaseKey + "::" + dom.id;
-            if (state.domainExpanded[selectedDomainKey] == null) state.domainExpanded[selectedDomainKey] = false;
-            const isSelectedDomainExpanded = state.domainExpanded[selectedDomainKey] !== false;
-            if (isSelectedCaseExpanded) {
-              const selectedDomRow = createManhoursRow(
-                "  └ " + dom.name + " (" + (isSelectedDomainExpanded ? "▼" : "▶") + ")",
-                (pl, d) => selectedCaseIds.includes(pl.caseId || "") && d.id === dom.id,
-                1
-              );
-              selectedDomRow.className += " manhoursDomainDetailRow";
-              selectedDomRow.dataset.mhKind = "domainSelectedTotal";
-              // selectedDomRow.dataset.caseIds = selectedCaseIds.join(",");
-              selectedDomRow.dataset.domainId = dom.id;
-              const selectedDomLabelCell = selectedDomRow.querySelector(".manhoursHead");
-              if (selectedDomLabelCell) {
-                selectedDomLabelCell.addEventListener("click", (e) => {
-                e.stopPropagation();
-                  state.domainExpanded[selectedDomainKey] = !isSelectedDomainExpanded;
-                renderGantt();
-              });
-            }
-              thead.appendChild(selectedDomRow);
-
-              if (isSelectedDomainExpanded) {
-            state.data.members.forEach((mem) => {
-                  const selectedMemRow = createManhoursRow(
-                    "    └ " + mem.name,
-                    (pl, d) => selectedCaseIds.includes(pl.caseId || "") && d.id === dom.id && pl.ownerId === mem.id,
-                    2
-                  );
-                  selectedMemRow.className += " manhoursMemberDetailRow";
-                  selectedMemRow.dataset.mhKind = "memberSelectedTotal";
-                  // selectedMemRow.dataset.caseIds = selectedCaseIds.join(",");
-                  selectedMemRow.dataset.domainId = dom.id;
-                  selectedMemRow.dataset.memberId = mem.id;
-                  thead.appendChild(selectedMemRow);
-                });
-              }
-            }
-          });
-        }
-      }
-      // Case別の集計行
-      state.data.cases.filter(caseMatchesCaseFilter).forEach((cse) => {
-        // Case別総合行
-        const isCaseExpanded = state.caseExpanded[cse.id] !== false;
-
-        // case集計作成
-        const caseRow = createManhoursRow("Case: " + cse.name + " (" + (isCaseExpanded ? "▼" : "▶") + ")", (pl) => pl.caseId === cse.id, 0);
-        caseRow.className += " manhoursCaseDetailRow";
-        caseRow.dataset.mhKind = "case";
-        caseRow.dataset.caseId = cse.id;
-        // Case行のラベルセルをクリック可能にする
-        const caseLabelCell = caseRow.querySelector(".manhoursHead");
-        if (caseLabelCell) {
-          caseLabelCell.addEventListener("click", (e) => {
-                e.stopPropagation();
-            state.caseExpanded[cse.id] = !isCaseExpanded;
-                renderGantt();
-              });
-            }
-        thead.appendChild(caseRow);
+    function createManhoursRowBody(tr, mhData) {
+      dates.forEach((ds) => {
+        const td = document.createElement("td");
+        td.className = "manhourCell";
+        td.dataset.date = ds;
         
-        // Domain別の集計行
-              state.data.domains.forEach((dom) => {
-          const domRowKey = cse.id + "::" + dom.id;
-          if (state.domainExpanded[domRowKey] == null) state.domainExpanded[domRowKey] = false; // 初期値は展開しない
-          const isDomainExpanded = state.domainExpanded[domRowKey] !== false;
-          
-          // Domain行の表示制御：総合が展開 AND 該当Case行が展開
-          if (isCaseExpanded) {
-            const domRow = createManhoursRow(
-              "  └ " + dom.name + " (" + (isDomainExpanded ? "▼" : "▶") + ")",
-              (pl, d) => pl.caseId === cse.id && d.id === dom.id,
-              1
-            );
-            domRow.className += " manhoursDomainDetailRow";
-            domRow.dataset.mhKind = "domain";
-            domRow.dataset.caseId = cse.id;
-            domRow.dataset.domainId = dom.id;
-            
-            // Domain行のラベルセルをクリック可能にする
-          const domLabelCell = domRow.querySelector(".manhoursHead");
-          if (domLabelCell) {
-            domLabelCell.addEventListener("click", (e) => {
+        // 当日の総工数を計算
+        const totalHours = (mhData[ds] && mhData[ds].total) ? mhData[ds].total : 0;
+        
+        // 人工 = 工数 / 8hr
+        const manHours = (totalHours / 8).toFixed(1);
+        td.textContent = manHours;
+        td.title = totalHours + "hr";
+        tr.appendChild(td);
+      });
+    }
+
+    function createManhoursRowBranchHeader(kind, mhKind, label, isExpanded, isExpandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth) {
+      let fixLabel = label + " (" + (isExpanded ? "▼" : "▶") + ")";
+      if (depth !== 0) fixLabel = "└ " + fixLabel;
+      const tr = createManhoursRowBase(fixLabel, depth);
+      //const e_act = selectedDomRow.querySelector(".manhoursHead");
+      const e_act = tr;
+      
+      switch (kind) {
+        case TOTAL_KIND_CASE:
+          tr.className += ` manhoursCaseDetailRow manhoursDetailRowDepth_${depth}`;
+          tr.dataset.mhKind = mhKind;
+          if (d_case) tr.dataset.caseId = d_case.id;
+          if (e_act) {
+            e_act.addEventListener("click", (e) => {
               e.stopPropagation();
-                state.domainExpanded[domRowKey] = !isDomainExpanded;
+              state.caseExpanded[isExpandKey] = !isExpanded;
               renderGantt();
             });
           }
-            
-            thead.appendChild(domRow);
-            
-            // Member別の集計行
-              // Member行の表示制御：総合が展開 AND Case行が展開 AND Domain行が展開
-            if (isDomainExpanded) {
-              state.data.members.forEach((mem) => {
-                const memRow = createManhoursRow("    └ " + mem.name, (pl, d) => pl.caseId === cse.id && d.id === dom.id && pl.ownerId === mem.id, 2);
-                memRow.className += " manhoursMemberDetailRow";
-                memRow.dataset.mhKind = "member";
-                memRow.dataset.caseId = cse.id;
-                memRow.dataset.domainId = dom.id;
-                memRow.dataset.memberId = mem.id;
-                thead.appendChild(memRow);
-          });
-            }
+          break;
+
+        case TOTAL_KIND_DOMAIN:
+          tr.className += ` manhoursDomainDetailRow manhoursDetailRowDepth_${depth}`;
+          tr.dataset.mhKind = mhKind;
+          if (d_dom) tr.dataset.domainId = d_dom.id;
+          if (e_act) {
+            e_act.addEventListener("click", (e) => {
+              e.stopPropagation();
+              state.domainExpanded[isExpandKey] = !isExpanded;
+              renderGantt();
+            });
           }
+          break;
+
+        case TOTAL_KIND_MEMBER:
+          tr.className += ` manhoursMemberDetailRow manhoursDetailRowDepth_${depth}`;
+          tr.dataset.mhKind = mhKind;
+          if (d_mem) tr.dataset.memberId = d_mem.id;
+          if (e_act) {
+            e_act.addEventListener("click", (e) => {
+              e.stopPropagation();
+              state.memberExpanded[isExpandKey] = !isExpanded;
+              renderGantt();
+            });
+          }
+          break;
+      }
+
+      return tr;
+    }
+    function createManhoursRowBranch(mhData, kind, mhKind, label, isExpanded, isExpandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth) {
+      const tr = createManhoursRowBranchHeader(kind, mhKind, label, isExpanded, isExpandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth);
+      createManhoursRowBody(tr, mhData);
+      return tr;
+    }
+
+    // 階層化して集計する人工集計のうち最下層の人工集計行作成処理
+    // 子階層の展開処理を持たない
+    function createManhoursRowTailHeader(kind, mhKind, label, d_case, d_dom, d_prj, d_ver, d_mem, depth) {
+      const fixLabel = (depth === 0) ? label : "└ " + label;
+      const tr = createManhoursRowBase(fixLabel, depth);
+      switch (kind) {
+        case TOTAL_KIND_MEMBER:
+          tr.className += ` manhoursMemberDetailRow manhoursDetailRowDepth_${depth}`;
+          tr.dataset.mhKind = mhKind;
+          if (d_mem) tr.dataset.memberId = d_mem.id;
+          break;
+      }
+      return tr;
+    }
+    function createManhoursRowTail(mhData, kind, mhKind, label, d_case, d_dom, d_prj, d_ver, d_mem, depth) {
+      const tr = createManhoursRowTailHeader(kind, mhKind, label, d_case, d_dom, d_prj, d_ver, d_mem, depth);
+      createManhoursRowBody(tr, mhData);
+      return tr;
+    }
+
+    // 集計パターンに応じて集計行を作成
+    // 人工集計表示展開設定のときに実施
+    if (state.manhoursExpanded) {
+      const caseFilterCount = state.caseFilter.length;
+      const ptns = TOTAL_PATTERN_CDM;
+
+      // 人工集計データ作成
+      const mhData = totalManhoursByPattern(state, dates, ptns);
+
+      // データ内容が空の集計行を一括で作成
+      let expandKey = "selected::";
+
+      const createManhoursRowCase = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+        //
+        if (ptn_idx >= ptns.length) return;
+        // 末尾データチェック
+        const isTail = (ptn_idx == ptns.length-1);
+
+        // 複数caseフィルタ選択
+        if (caseFilterCount >= 2) {
+          const selectedCases = state.caseFilter
+            .map((id) => state.data.cases.find((c) => c.id === id))
+            .filter((c) => !!c);
+          if (selectedCases.length >= 2) {
+            const selectedCaseIds = selectedCases.map((c) => c.id);
+            const selectedCaseLabel = selectedCases.map((c) => c.name || c.id).join(" + ");
+            const selectedCaseKey = expandKey + selectedCaseIds.join("|");
+            if (state.caseExpanded[selectedCaseKey] == null) state.caseExpanded[selectedCaseKey] = (depth < 1);
+            const isExpanded = state.caseExpanded[selectedCaseKey] !== false;
+
+            const row = isTail
+              ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "caseSelectedTotal", selectedCaseLabel, null, null, null, null, null, depth)
+              : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "caseSelectedTotal", selectedCaseLabel, isExpanded, selectedCaseKey, null, null, null, null, null, depth);
+
+            mhRowList.push(row);
+            mhRowMap.caseFilter = [ row, {} ];
+
+            // 子階層処理
+            if (isExpanded) createManhoursRow(mhRowList, mhRowMap.caseFilter[1], ptns, ptn_idx+1, selectedCaseKey+"::", depth+1, true);
+          }
+        }
+        // case
+        state.data.cases.filter(caseMatchesCaseFilter).forEach((cse) => {
+          // Case別総合行
+          const caseKey = expandKey + cse.id;
+          if (state.caseExpanded[caseKey] == null) state.caseExpanded[caseKey] = (depth < 1);
+          const isExpanded = state.caseExpanded[caseKey] !== false;
+
+          const row = isTail
+            ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "case", cse.name, null, null, null, null, null, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "case", cse.name, isExpanded, caseKey, null, null, null, null, null, depth);
+
+          mhRowList.push(row);
+          mhRowMap[cse.id] = [ row, {} ];
+
+          // 子階層処理
+          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[cse.id][1], ptns, ptn_idx+1, caseKey+"::", depth+1, false);
         });
+      }
+
+      const createManhoursRowDomain = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+        //
+        if (ptn_idx >= ptns.length) return;
+        // 末尾データチェック
+        const isTail = (ptn_idx == ptns.length-1);
+        // 集計行作成
+        state.data.domains.forEach((dom) => {
+          const domainKey = expandKey + dom.id;
+          if (state.domainExpanded[domainKey] == null) state.domainExpanded[domainKey] = (depth < 1);
+          const isExpanded = state.domainExpanded[domainKey] !== false;
+          const mhKind = isSelectedTotal ? "domainSelectedTotal" : "domain";
+          const row = isTail
+            ? createManhoursRowTailHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, null, null, null, null, null, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, isExpanded, domainKey, null, null, null, null, null, depth);
+
+          mhRowList.push(row);
+          mhRowMap[dom.id] = [ row, {} ];
+
+          // 子階層処理
+          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[dom.id][1], ptns, ptn_idx+1, domainKey+"::", depth+1, isSelectedTotal);
+        });
+      }
+
+      const createManhoursRowMember = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+        //
+        if (ptn_idx >= ptns.length) return;
+        // 末尾データチェック
+        const isTail = (ptn_idx == ptns.length-1);
+        // 集計行作成
+        state.data.members.forEach((mem) => {
+          const memKey = expandKey + mem.id;
+          if (state.memberExpanded[memKey] == null) state.memberExpanded[memKey] = (depth < 1);
+          const isExpanded = state.memberExpanded[memKey] !== false;
+          const mhKind = isSelectedTotal ? "memberSelectedTotal" : "member";
+          const row = isTail
+            ? createManhoursRowTailHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, null, null, null, null, null, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, isExpanded, memKey, null, null, null, null, null, depth);
+
+          mhRowList.push(row);
+          mhRowMap[mem.id] = [ row, {} ];
+
+          // 子階層処理
+          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[mem.id][1], ptns, ptn_idx+1, memKey+"::", depth+1, isSelectedTotal);
+        });
+      }
+
+      function createManhoursRow(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) {
+        if (ptns.length <= ptn_idx) return;
+        const ptn = ptns[ptn_idx];
+        switch (ptn) {
+          case TOTAL_KIND_CASE:
+            createManhoursRowCase(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            break;
+          case TOTAL_KIND_DOMAIN:
+            createManhoursRowDomain(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            break;
+          case TOTAL_KIND_MEMBER:
+            createManhoursRowMember(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            break;
+        }
+      }
+
+
+      function createManhoursRowBody(mhData, mhRowMap) {
+        const makeBody = (ds, data, map) => {
+          Object.keys(map).forEach((key) => {
+            // 
+            const obj = map[key];
+            const tr = obj[0];
+            // 当日の総工数を取得
+            const mhobj = (key === "caseFilter") ? data?.caseFilter : data?.detail[key];
+            const totalHours = (mhobj) ? mhobj.total : 0;
+            //
+            const td = document.createElement("td");
+            td.className = "manhourCell";
+            td.dataset.date = ds;
+            
+            // 人工 = 工数 / 8hr
+            const manHours = (totalHours / 8).toFixed(1);
+            td.textContent = manHours;
+            td.title = totalHours + "hr";
+            tr.appendChild(td);
+
+            //
+            makeBody(ds, mhobj, obj[1]);
+          });
+        }
+
+        dates.forEach((ds) => {
+          const data = mhData[ds];
+          makeBody(ds, data, mhRowMap);
+        });
+      }
+
+      // header要素まで作成
+      const mhRowList = [];
+      const mhRowMap = {};
+      createManhoursRow(mhRowList, mhRowMap, ptns, 0, expandKey, 0, false);
+      // body要素作成
+      createManhoursRowBody(mhData, mhRowMap);
+      mhRowList.forEach((tr) => {
+        thead.appendChild(tr);
       });
+
+      // state.data.domains.forEach((dom) => {
+      //   (dom.projects || []).forEach((pr) => {
+      //     (pr.versions || []).forEach((vr) => {
+      //       state.data.members.forEach((mem) => {
+      //       });
+
+      //       (vr.tasks || []).forEach((tk) => {
+      //         (tk.plans || []).forEach((pl) => {
+      //           // フィルタケア
+      //           if (!planMatchesCaseFilter(pl)) return;
+      //           // 対象日付の稼働ManHourを取得
+      //           const mh = dayHoursAll(pl, ds);
+      //           // 稼働日でなければスキップ
+      //           if (mh == 0) return;
+
+      //           // ルート要素作成
+      //           if (!totalHours[ds]) totalHours[ds] = { total: 0, detail: {} };
+      //           const dateNode = totalHours[ds];
+
+      //         });
+      //       });
+      //     });
+      //   });
+      // });
     }
 
     function addDPVRow(label, target, kind) {
