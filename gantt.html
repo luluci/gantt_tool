@@ -1325,7 +1325,7 @@ const csLoaded = () => {
 
   function totalManhoursByPattern(state, dates, ptns) {
     const caseFilterCount = state.caseFilter.length;
-    // date/case/domain/memberの階層で人工集計
+    // ptnsの階層で人工集計
     let totalHours = {};
     (dates || []).forEach((ds) => {
       state.data.domains.forEach((dom) => {
@@ -1374,6 +1374,34 @@ const csLoaded = () => {
                       }
                       // domain集計
                       tgtNode = tgtNode.detail[dom.id];
+                      tgtNode.total += mh;
+                      break;
+
+                    case TOTAL_KIND_PROJECT:
+                      // チェック
+                      if (!tgtNode.detail[pr.id]) tgtNode.detail[pr.id] = { total: 0, detail: {} };
+                      // フィルタproject集計
+                      if (!!filterNode) {
+                        if (!filterNode.detail[pr.id]) filterNode.detail[pr.id] = { total: 0, detail: {} };
+                        filterNode = filterNode.detail[pr.id];
+                        filterNode.total += mh;
+                      }
+                      // project集計
+                      tgtNode = tgtNode.detail[pr.id];
+                      tgtNode.total += mh;
+                      break;
+
+                    case TOTAL_KIND_VERSION:
+                      // チェック
+                      if (!tgtNode.detail[vr.id]) tgtNode.detail[vr.id] = { total: 0, detail: {} };
+                      // フィルタversion集計
+                      if (!!filterNode) {
+                        if (!filterNode.detail[vr.id]) filterNode.detail[vr.id] = { total: 0, detail: {} };
+                        filterNode = filterNode.detail[vr.id];
+                        filterNode.total += mh;
+                      }
+                      // version集計
+                      tgtNode = tgtNode.detail[vr.id];
                       tgtNode.total += mh;
                       break;
 
