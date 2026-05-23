@@ -1433,57 +1433,60 @@ const csLoaded = () => {
     // case/domain/member ごとの工数集計行を更新
     const totalHours = totalManhoursByPattern(state, dates, TOTAL_PATTERN_CDM);
     const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
+    let caseId = null;
+    let domainId = null;
+    let memberId = null;
+    let kindHier = [];
     rows.forEach((row) => {
+      // 行情報更新
       const kind = row.dataset.mhKind || "";
-      const caseId = row.dataset.caseId || "";
       const domainId = row.dataset.domainId || "";
       const memberId = row.dataset.memberId || "";
+      const caseId = row.dataset.caseId || "";
+      const depth = parseInt(row.dataset.depth) || 0;
+      // 現在の階層depthまでのkeyリストを作成
+      kindHier = kindHier.slice(0, depth);
+      switch (kind) {
+        case "case":
+          kindHier.push(caseId);
+          break;
+        case "caseSelectedTotal":
+          kindHier.push("caseFilter");
+          break;
+        case "domain":
+        case "domainSelectedTotal":
+          kindHier.push(domainId);
+          break;
+        case "member":
+        case "memberSelectedTotal":
+          kindHier.push(memberId);
+          break;
+      }
+      // keyリストから工数を取得するgetter
+      const getDateNode = (ds) => {
+        let tgt = totalHours[ds];
+        if (!tgt) return null;
+        //
+        for (let i=0; i<kindHier.length; i++) {
+          const key = kindHier[i];
+          if (key === "caseFilter") {
+            tgt = tgt.caseFilter;
+          } else {
+            tgt = tgt.detail[key];
+          }
+          if (!tgt) return null;
+        }
+        return tgt;
+      }
+
       row.querySelectorAll("td.manhourCell[data-date]").forEach((td) => {
         const ds = td.dataset.date || "";
         if (!ds) return;
         if (dates && !dates.includes(ds)) return;
+        const dateNode = getDateNode(ds);
         let mh = 0;
-        if (totalHours[ds]) {
-          const dateNode = totalHours[ds];
-        if (kind === "case") {
-            const caseNode = dateNode.detail[caseId];
-            if (caseNode) mh = caseNode.total;
-          } else if (kind === "caseSelectedTotal") {
-            const caseNode = dateNode.caseFilter;
-            if (caseNode) mh = caseNode.total;
-        } else if (kind === "domain") {
-            const caseNode = dateNode.detail[caseId];
-            if (caseNode) {
-              const domainNode = caseNode.detail[domainId];
-              if (domainNode) mh = domainNode.total;
-            }
-          } else if (kind === "domainSelectedTotal") {
-            const caseNode = dateNode.caseFilter;
-            if (caseNode) {
-              const domainNode = caseNode.detail[domainId];
-              if (domainNode) mh = domainNode.total;
-            }
-        } else if (kind === "member") {
-            const caseNode = dateNode.detail[caseId];
-            if (caseNode) {
-              const domainNode = caseNode.detail[domainId];
-              if (domainNode) {
-                const memberNode = domainNode.detail[memberId];
-                if (memberNode) mh = memberNode.total;
-              }
-            }
-          } else if (kind === "memberSelectedTotal") {
-            const caseNode = dateNode.caseFilter;
-            if (caseNode) {
-              const domainNode = caseNode.detail[domainId];
-              if (domainNode) {
-                const memberNode = domainNode.detail[memberId];
-                if (memberNode) mh = memberNode.total;
-              }
-            }
-        } else {
-            mh = dateNode.total;
-          }
+        if (dateNode) {
+          mh = dateNode.total;
         }
         td.textContent = (mh / 8).toFixed(1);
         td.title = mh + "hr";
@@ -3441,47 +3444,6 @@ const csLoaded = () => {
     
     thead.appendChild(totalManhoursRow);
 
-    function createManhoursRow(label, filterFn, depth = 0) {
-      const tr = document.createElement("tr");
-      tr.className = "treeRow manhoursRow";
-      const labelCell = document.createElement("th");
-      labelCell.className = "manhoursHead";
-      labelCell.colSpan = 2;
-      labelCell.style.paddingLeft = (8 + depth * 10) + "px";
-      labelCell.textContent = label;
-      tr.appendChild(labelCell);
-      
-      dates.forEach((ds) => {
-        const td = document.createElement("td");
-        td.className = "manhourCell";
-        td.dataset.date = ds;
-        
-        // 当日の総工数を計算
-        let totalHours = 0;
-        state.data.domains.forEach((dom) => {
-          (dom.projects || []).forEach((pr) => {
-            (pr.versions || []).forEach((vr) => {
-              (vr.tasks || []).forEach((tk) => {
-                (tk.plans || []).forEach((pl) => {
-                  if (planMatchesCaseFilter(pl) && filterFn(pl, dom)) {
-                    const hours = dayHoursAll(pl, ds);
-                    totalHours += hours;
-                  }
-                });
-              });
-            });
-          });
-        });
-        
-        // 人工 = 工数 / 8hr
-        const manHours = (totalHours / 8).toFixed(1);
-        td.textContent = manHours;
-        td.title = totalHours + "hr";
-        tr.appendChild(td);
-      });
-      
-      return tr;
-    }
 
     function createManhoursRowBase(label, depth = 0) {
       const tr = document.createElement("tr");
@@ -3524,6 +3486,7 @@ const csLoaded = () => {
         case TOTAL_KIND_CASE:
           tr.className += ` manhoursCaseDetailRow manhoursDetailRowDepth_${depth}`;
           tr.dataset.mhKind = mhKind;
+          tr.dataset.depth = depth;
           if (d_case) tr.dataset.caseId = d_case.id;
           if (e_act) {
             e_act.addEventListener("click", (e) => {
@@ -3537,6 +3500,7 @@ const csLoaded = () => {
         case TOTAL_KIND_DOMAIN:
           tr.className += ` manhoursDomainDetailRow manhoursDetailRowDepth_${depth}`;
           tr.dataset.mhKind = mhKind;
+          tr.dataset.depth = depth;
           if (d_dom) tr.dataset.domainId = d_dom.id;
           if (e_act) {
             e_act.addEventListener("click", (e) => {
@@ -3550,6 +3514,7 @@ const csLoaded = () => {
         case TOTAL_KIND_MEMBER:
           tr.className += ` manhoursMemberDetailRow manhoursDetailRowDepth_${depth}`;
           tr.dataset.mhKind = mhKind;
+          tr.dataset.depth = depth;
           if (d_mem) tr.dataset.memberId = d_mem.id;
           if (e_act) {
             e_act.addEventListener("click", (e) => {
@@ -3578,6 +3543,7 @@ const csLoaded = () => {
         case TOTAL_KIND_MEMBER:
           tr.className += ` manhoursMemberDetailRow manhoursDetailRowDepth_${depth}`;
           tr.dataset.mhKind = mhKind;
+          tr.dataset.depth = depth;
           if (d_mem) tr.dataset.memberId = d_mem.id;
           break;
       }
@@ -3638,8 +3604,8 @@ const csLoaded = () => {
           const isExpanded = state.caseExpanded[caseKey] !== false;
 
           const row = isTail
-            ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "case", cse.name, null, null, null, null, null, depth)
-            : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "case", cse.name, isExpanded, caseKey, null, null, null, null, null, depth);
+            ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "case", cse.name, cse, null, null, null, null, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "case", cse.name, isExpanded, caseKey, cse, null, null, null, null, depth);
 
           mhRowList.push(row);
           mhRowMap[cse.id] = [ row, {} ];
@@ -3661,8 +3627,8 @@ const csLoaded = () => {
           const isExpanded = state.domainExpanded[domainKey] !== false;
           const mhKind = isSelectedTotal ? "domainSelectedTotal" : "domain";
           const row = isTail
-            ? createManhoursRowTailHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, null, null, null, null, null, depth)
-            : createManhoursRowBranchHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, isExpanded, domainKey, null, null, null, null, null, depth);
+            ? createManhoursRowTailHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, null, dom, null, null, null, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, isExpanded, domainKey, null, dom, null, null, null, depth);
 
           mhRowList.push(row);
           mhRowMap[dom.id] = [ row, {} ];
@@ -3684,8 +3650,8 @@ const csLoaded = () => {
           const isExpanded = state.memberExpanded[memKey] !== false;
           const mhKind = isSelectedTotal ? "memberSelectedTotal" : "member";
           const row = isTail
-            ? createManhoursRowTailHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, null, null, null, null, null, depth)
-            : createManhoursRowBranchHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, isExpanded, memKey, null, null, null, null, null, depth);
+            ? createManhoursRowTailHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, null, null, null, null, mem, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, isExpanded, memKey, null, null, null, null, mem, depth);
 
           mhRowList.push(row);
           mhRowMap[mem.id] = [ row, {} ];
