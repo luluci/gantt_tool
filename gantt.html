@@ -541,11 +541,13 @@
       font-weight: bold;
       cursor: pointer;
     }
+    .manhoursDetailRowBranch th.manhoursHead {
+      cursor: pointer;
+    }
     .manhoursDetailRowDepth_0 th.manhoursHead {
       background: #e4d7bf;
       border-left: 1px solid var(--border);
       z-index: var(--z-index-header-caption) !important;
-      cursor: pointer;
     }
     .manhoursDetailRowDepth_0 td.manhourCell {
       background: #e4d7bf !important;
@@ -555,7 +557,6 @@
       background: #d7e4bf;
       border-left: 1px solid var(--border);
       z-index: var(--z-index-header-caption) !important;
-      cursor: pointer;
     }
     .manhoursDetailRowDepth_1 td.manhourCell {
       background: #d7e4bf;
@@ -568,6 +569,15 @@
     }
     .manhoursDetailRowDepth_2 td.manhourCell {
       background: #bfd7e4 !important;
+      height: var(--cal-head-row-h);
+    }
+    .manhoursDetailRowDepth_3 th.manhoursHead {
+      background: #bfe4ce;
+      border-left: 1px solid var(--border);
+      z-index: var(--z-index-header-caption) !important;
+    }
+    .manhoursDetailRowDepth_3 td.manhourCell {
+      background: #bfe4ce !important;
       height: var(--cal-head-row-h);
     }
 
@@ -828,11 +838,11 @@ const csLoaded = () => {
 
   /** plan セル内の左右端判定（ドラッグの resize と同じ幅） */
   const PLAN_CELL_EDGE_PX = 8;
-  const AGG_PATTERN_CDM = "case/domain/member";
-  const AGG_PATTERN_CMD = "case/member/domain";
-  const AGG_PATTERN_CMP = "case/member/project";
-  const AGG_PATTERN_CDPU = "case/domain/project/member";
-  const AGGREGATION_PATTERNS = [AGG_PATTERN_CDM, AGG_PATTERN_CMD, AGG_PATTERN_CMP, AGG_PATTERN_CDPU];
+  const TOTAL_PATTERN_CDM = "case/domain/member";
+  const TOTAL_PATTERN_CMD = "case/member/domain";
+  const TOTAL_PATTERN_CDPM = "case/domain/project/member";
+  const TOTAL_PATTERN_CMDP = "case/member/domain/project";
+  const TOTAL_PATTERNS = [TOTAL_PATTERN_CDM, TOTAL_PATTERN_CMD, TOTAL_PATTERN_CDPM, TOTAL_PATTERN_CMDP];
 
   // 集計対象アイテム定義
   const TOTAL_KIND_DOMAIN = 1;
@@ -842,10 +852,26 @@ const csLoaded = () => {
   const TOTAL_KIND_CASE = 5;
   const TOTAL_KIND_MEMBER = 6;
   // 集計パターン定義
-  const TOTAL_PATTERN_CDM = [TOTAL_KIND_CASE, TOTAL_KIND_DOMAIN, TOTAL_KIND_MEMBER];
+  const TOTAL_PATTERN_LIST_CDM = [TOTAL_KIND_CASE, TOTAL_KIND_DOMAIN, TOTAL_KIND_MEMBER];
+  const TOTAL_PATTERN_LIST_CMD = [TOTAL_KIND_CASE, TOTAL_KIND_MEMBER, TOTAL_KIND_DOMAIN];
+  const TOTAL_PATTERN_LIST_CDPM = [TOTAL_KIND_CASE, TOTAL_KIND_DOMAIN, TOTAL_KIND_PROJECT, TOTAL_KIND_MEMBER];
+  const TOTAL_PATTERN_LIST_CMDP = [TOTAL_KIND_CASE, TOTAL_KIND_MEMBER, TOTAL_KIND_DOMAIN, TOTAL_KIND_PROJECT];
 
-  function normalizeAggregationPattern(v) {
-    return AGGREGATION_PATTERNS.includes(v) ? v : AGG_PATTERN_CDM;
+  function normalizeTotalPattern(v) {
+    return TOTAL_PATTERNS.includes(v) ? v : TOTAL_PATTERN_CDM;
+  }
+  function getTotalPatternList(ptn) {
+    switch (ptn) {
+      case TOTAL_PATTERN_CMD:
+        return TOTAL_PATTERN_LIST_CMD;
+      case TOTAL_PATTERN_CDPM:
+        return TOTAL_PATTERN_LIST_CDPM;
+      case TOTAL_PATTERN_CMDP:
+        return TOTAL_PATTERN_LIST_CMDP;
+      case TOTAL_PATTERN_CDM:
+      default:
+        return TOTAL_PATTERN_LIST_CDM;
+    }
   }
 
   function emptyData() {
@@ -857,7 +883,7 @@ const csLoaded = () => {
       commonHolidays: [],
       milestones: {},
       domains: [],
-      aggregationPattern: AGG_PATTERN_CDM,
+      totalPattern: TOTAL_PATTERN_CDM,
     };
   }
 
@@ -906,7 +932,7 @@ const csLoaded = () => {
     if (!Array.isArray(d.commonHolidays)) d.commonHolidays = [];
     if (!d.milestones || typeof d.milestones !== "object") d.milestones = {};
     if (!Array.isArray(d.domains)) d.domains = [];
-    d.aggregationPattern = normalizeAggregationPattern(d.aggregationPattern);
+    d.totalPattern = normalizeTotalPattern(d.totalPattern);
     d.domains.forEach((dom) => {
       dom.cells = dom.cells && typeof dom.cells === "object" ? dom.cells : {};
       dom.projects = dom.projects || [];
@@ -1407,10 +1433,10 @@ const csLoaded = () => {
 
                     case TOTAL_KIND_MEMBER:
                       // チェック
-                      if (!tgtNode.detail[pl.ownerId]) tgtNode.detail[pl.ownerId] = { total: 0 };
+                      if (!tgtNode.detail[pl.ownerId]) tgtNode.detail[pl.ownerId] = { total: 0, detail: {} };
                       // フィルタmember集計
                       if (!!filterNode) {
-                        if (!filterNode.detail[pl.ownerId]) filterNode.detail[pl.ownerId] = { total: 0 };
+                        if (!filterNode.detail[pl.ownerId]) filterNode.detail[pl.ownerId] = { total: 0, detail: {} };
                         filterNode = filterNode.detail[pl.ownerId];
                         filterNode.total += mh;
                       }
@@ -1431,18 +1457,16 @@ const csLoaded = () => {
 
   function refreshManhoursRowsDom(dates) {
     // case/domain/member ごとの工数集計行を更新
-    const totalHours = totalManhoursByPattern(state, dates, TOTAL_PATTERN_CDM);
+    const totalHours = totalManhoursByPattern(state, dates, state.totalPatternList);
     const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
-    let caseId = null;
-    let domainId = null;
-    let memberId = null;
     let kindHier = [];
     rows.forEach((row) => {
       // 行情報更新
       const kind = row.dataset.mhKind || "";
-      const domainId = row.dataset.domainId || "";
-      const memberId = row.dataset.memberId || "";
       const caseId = row.dataset.caseId || "";
+      const domainId = row.dataset.domainId || "";
+      const projectId = row.dataset.projectId || "";
+      const memberId = row.dataset.memberId || "";
       const depth = parseInt(row.dataset.depth) || 0;
       // 現在の階層depthまでのkeyリストを作成
       kindHier = kindHier.slice(0, depth);
@@ -1456,6 +1480,10 @@ const csLoaded = () => {
         case "domain":
         case "domainSelectedTotal":
           kindHier.push(domainId);
+          break;
+        case "project":
+        case "projectSelectedTotal":
+          kindHier.push(projectId);
           break;
         case "member":
         case "memberSelectedTotal":
@@ -1592,7 +1620,8 @@ const csLoaded = () => {
   const state = {
     data: emptyData(),
     caseFilter: [],
-    aggregationPattern: AGG_PATTERN_CDM,
+    totalPattern: TOTAL_PATTERN_CDM,
+    totalPatternList: TOTAL_PATTERN_LIST_CDM,
     selectedPlanId: null,
     selectedManhoursRow: null,
     leftPaneWidth: 450,
@@ -1602,8 +1631,9 @@ const csLoaded = () => {
     inputPaneVisible: true,
     topPaneVisible: true,
     manhoursExpanded: true,
-    caseExpanded: {}, // { caseId: boolean }
-    domainExpanded: {}, // { caseId::domainId: boolean }
+    caseExpanded: {},
+    domainExpanded: {},
+    projectExpanded: {},
     memberExpanded: {},
     dirty: false,
     fileHandle: null,
@@ -1622,8 +1652,9 @@ const csLoaded = () => {
     state.caseFilter = Array.isArray(state.data.caseFilter) ? state.data.caseFilter.slice() : [];
     state.caseFilter = state.caseFilter.filter((id) => state.data.cases.some((c) => c.id === id));
     state.data.caseFilter = state.caseFilter.slice();
-    state.aggregationPattern = normalizeAggregationPattern(state.data.aggregationPattern);
-    state.data.aggregationPattern = state.aggregationPattern;
+    state.totalPattern = normalizeTotalPattern(state.data.totalPattern);
+    state.totalPatternList = getTotalPatternList(state.totalPattern);
+    state.data.totalPattern = state.totalPattern;
     const viewerMode = window.__GANTT_VIEWER_MODE__ || false;
     if (viewerMode) {
       state.inputPaneVisible = false;
@@ -2020,23 +2051,24 @@ const csLoaded = () => {
     const aggBlock = document.createElement("div");
     aggBlock.className = "topBlock";
     const aggLabel = document.createElement("label");
-    aggLabel.textContent = "aggregation";
+    aggLabel.textContent = "集計モード";
     const aggSel = document.createElement("select");
     aggSel.className = "listbox";
     aggSel.multiple = false;
-    aggSel.size = AGGREGATION_PATTERNS.length;
-    AGGREGATION_PATTERNS.forEach((p) => {
+    aggSel.size = TOTAL_PATTERNS.length;
+    TOTAL_PATTERNS.forEach((p) => {
       const o = document.createElement("option");
       o.value = p;
       o.textContent = p;
       aggSel.appendChild(o);
     });
-    aggSel.value = normalizeAggregationPattern(state.data.aggregationPattern);
+    aggSel.value = normalizeTotalPattern(state.data.totalPattern);
     aggSel.addEventListener("change", () => {
-      const next = normalizeAggregationPattern(aggSel.value);
-      if (state.data.aggregationPattern === next && state.aggregationPattern === next) return;
-      state.aggregationPattern = next;
-      state.data.aggregationPattern = next;
+      const next = normalizeTotalPattern(aggSel.value);
+      if (state.data.totalPattern === next && state.totalPattern === next) return;
+      state.totalPattern = next;
+      state.totalPatternList = getTotalPatternList(next);
+      state.data.totalPattern = next;
       markDirty(state, true);
       renderGantt();
     });
@@ -3479,14 +3511,14 @@ const csLoaded = () => {
       let fixLabel = label + " (" + (isExpanded ? "▼" : "▶") + ")";
       if (depth !== 0) fixLabel = "└ " + fixLabel;
       const tr = createManhoursRowBase(fixLabel, depth);
+      tr.className += ` manhoursDetailRowBranch manhoursDetailRowDepth_${depth}`;
+      tr.dataset.mhKind = mhKind;
+      tr.dataset.depth = depth;
       //const e_act = selectedDomRow.querySelector(".manhoursHead");
       const e_act = tr;
       
       switch (kind) {
         case TOTAL_KIND_CASE:
-          tr.className += ` manhoursCaseDetailRow manhoursDetailRowDepth_${depth}`;
-          tr.dataset.mhKind = mhKind;
-          tr.dataset.depth = depth;
           if (d_case) tr.dataset.caseId = d_case.id;
           if (e_act) {
             e_act.addEventListener("click", (e) => {
@@ -3498,9 +3530,6 @@ const csLoaded = () => {
           break;
 
         case TOTAL_KIND_DOMAIN:
-          tr.className += ` manhoursDomainDetailRow manhoursDetailRowDepth_${depth}`;
-          tr.dataset.mhKind = mhKind;
-          tr.dataset.depth = depth;
           if (d_dom) tr.dataset.domainId = d_dom.id;
           if (e_act) {
             e_act.addEventListener("click", (e) => {
@@ -3511,10 +3540,18 @@ const csLoaded = () => {
           }
           break;
 
+        case TOTAL_KIND_PROJECT:
+          if (d_prj) tr.dataset.projectId = d_prj.id;
+          if (e_act) {
+            e_act.addEventListener("click", (e) => {
+              e.stopPropagation();
+              state.projectExpanded[isExpandKey] = !isExpanded;
+              renderGantt();
+            });
+          }
+          break;
+
         case TOTAL_KIND_MEMBER:
-          tr.className += ` manhoursMemberDetailRow manhoursDetailRowDepth_${depth}`;
-          tr.dataset.mhKind = mhKind;
-          tr.dataset.depth = depth;
           if (d_mem) tr.dataset.memberId = d_mem.id;
           if (e_act) {
             e_act.addEventListener("click", (e) => {
@@ -3539,11 +3576,17 @@ const csLoaded = () => {
     function createManhoursRowTailHeader(kind, mhKind, label, d_case, d_dom, d_prj, d_ver, d_mem, depth) {
       const fixLabel = (depth === 0) ? label : "└ " + label;
       const tr = createManhoursRowBase(fixLabel, depth);
+      tr.className += ` manhoursDetailRowDepth_${depth}`;
+      tr.dataset.mhKind = mhKind;
+      tr.dataset.depth = depth;
       switch (kind) {
+        case TOTAL_KIND_DOMAIN:
+          if (d_dom) tr.dataset.domainId = d_dom.id;
+          break;
+        case TOTAL_KIND_PROJECT:
+          if (d_prj) tr.dataset.projectId = d_prj.id;
+          break;
         case TOTAL_KIND_MEMBER:
-          tr.className += ` manhoursMemberDetailRow manhoursDetailRowDepth_${depth}`;
-          tr.dataset.mhKind = mhKind;
-          tr.dataset.depth = depth;
           if (d_mem) tr.dataset.memberId = d_mem.id;
           break;
       }
@@ -3559,13 +3602,13 @@ const csLoaded = () => {
     // 人工集計表示展開設定のときに実施
     if (state.manhoursExpanded) {
       const caseFilterCount = state.caseFilter.length;
-      const ptns = TOTAL_PATTERN_CDM;
+      const ptns = state.totalPatternList;
 
       // 人工集計データ作成
       const mhData = totalManhoursByPattern(state, dates, ptns);
 
       // データ内容が空の集計行を一括で作成
-      let expandKey = "selected::";
+      let expandKey = "";
 
       const createManhoursRowCase = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
         //
@@ -3638,6 +3681,31 @@ const csLoaded = () => {
         });
       }
 
+      const createManhoursRowProject = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+        //
+        if (ptn_idx >= ptns.length) return;
+        // 末尾データチェック
+        const isTail = (ptn_idx == ptns.length-1);
+        // 集計行作成
+        state.data.domains.forEach((dom) => {
+          (dom.projects || []).forEach((pr) => {
+            const projectKey = expandKey + pr.id;
+            if (state.projectExpanded[projectKey] == null) state.projectExpanded[projectKey] = (depth < 1);
+            const isExpanded = state.projectExpanded[projectKey] !== false;
+            const mhKind = isSelectedTotal ? "projectSelectedTotal" : "project";
+            const row = isTail
+              ? createManhoursRowTailHeader(TOTAL_KIND_PROJECT, mhKind, pr.name, null, dom, pr, null, null, depth)
+              : createManhoursRowBranchHeader(TOTAL_KIND_PROJECT, mhKind, pr.name, isExpanded, projectKey, null, dom, pr, null, null, depth);
+
+            mhRowList.push(row);
+            mhRowMap[pr.id] = [ row, {} ];
+
+            // 子階層処理
+            if (isExpanded) createManhoursRow(mhRowList, mhRowMap[pr.id][1], ptns, ptn_idx+1, projectKey+"::", depth+1, isSelectedTotal);
+          });
+        });
+      }
+
       const createManhoursRowMember = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
         //
         if (ptn_idx >= ptns.length) return;
@@ -3670,6 +3738,9 @@ const csLoaded = () => {
             break;
           case TOTAL_KIND_DOMAIN:
             createManhoursRowDomain(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            break;
+          case TOTAL_KIND_PROJECT:
+            createManhoursRowProject(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
             break;
           case TOTAL_KIND_MEMBER:
             createManhoursRowMember(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
