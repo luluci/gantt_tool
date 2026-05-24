@@ -1468,6 +1468,89 @@ const csLoaded = () => {
     return touched;
   }
 
+  // 下記データ構造で集計
+  // result[case::domain::*][date] = manhour
+  function totalManhoursByPattern2(state, dates, ptns) {
+    const caseFilterCount = state.caseFilter.length;
+    const caseFilterKey = state.caseFilter.join("|");
+    // ptnsの階層で人工集計
+    let totalHours = {};
+    (dates || []).forEach((ds) => {
+      state.data.domains.forEach((dom) => {
+        (dom.projects || []).forEach((pr) => {
+          (pr.versions || []).forEach((vr) => {
+            (vr.tasks || []).forEach((tk) => {
+              (tk.plans || []).forEach((pl) => {
+                // フィルタケア
+                if (!planMatchesCaseFilter(pl)) return;
+                // 対象日付の稼働ManHourを取得
+                const mh = dayHoursAll(pl, ds);
+                // 稼働日でなければスキップ
+                if (mh == 0) return;
+
+                // パターンに従い階層化して集計
+                let key = "";
+                let filterKey = "filter::";
+                let nextKey;
+                let nextFilterKey;
+                const hasFilter = caseFilterCount >= 2;
+                ptns.forEach((kind) => {
+                  switch (kind) {
+                    case TOTAL_KIND_CASE:
+                      // caseチェック
+                      nextKey = pl.caseId;
+                      nextFilterKey = caseFilterKey;
+                      break;
+
+                    case TOTAL_KIND_DOMAIN:
+                      // チェック
+                      nextKey = dom.id;
+                      nextFilterKey = dom.id;
+                      break;
+
+                    case TOTAL_KIND_PROJECT:
+                      // チェック
+                      nextKey = pr.id;
+                      nextFilterKey = pr.id;
+                      break;
+
+                    case TOTAL_KIND_VERSION:
+                      // チェック
+                      nextKey = vr.id;
+                      nextFilterKey = vr.id;
+                      break;
+
+                    case TOTAL_KIND_MEMBER:
+                      // チェック
+                      nextKey = pl.ownerId;
+                      nextFilterKey = pl.ownerId;
+                      break;
+                  }
+              
+                  {
+                    const tmpKey = key + nextKey;
+                    if (!totalHours[tmpKey]) totalHours[tmpKey] = {};
+                    if (!totalHours[tmpKey][ds]) totalHours[tmpKey][ds] = 0;
+                    totalHours[tmpKey][ds] += mh;
+                    key = tmpKey + "::";
+                  }
+                  if (hasFilter) {
+                    const tmpKey = filterKey + nextFilterKey;
+                    if (!totalHours[tmpKey]) totalHours[tmpKey] = {};
+                    if (!totalHours[tmpKey][ds]) totalHours[tmpKey][ds] = 0;
+                    totalHours[tmpKey][ds] += mh;
+                    filterKey = tmpKey + "::";
+                  }
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+    return totalHours;
+  }
+
   function totalManhoursByPattern(state, dates, ptns) {
     const caseFilterCount = state.caseFilter.length;
     // ptnsの階層で人工集計
