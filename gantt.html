@@ -164,14 +164,27 @@
       color: #233449;
       font-weight: 700;
       text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 6;
     }
     .manhourSummaryTable th.summaryAxis {
       text-align: left;
       min-width: 140px;
       white-space: nowrap;
+      position: sticky;
+      left: 0;
+      z-index: 8;
+      background: #e8eef8;
     }
     .manhourSummaryTable td.summaryLabel {
       white-space: nowrap;
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      background: #fff;
+      border-right: 1px solid #b9c2cf;
+      box-shadow: 1px 0 0 #b9c2cf;
     }
     .manhourSummaryTable td.isNum {
       text-align: right;
@@ -190,7 +203,13 @@
     .manhourSummaryTable tbody tr:nth-child(even) {
       background: #f8fafd;
     }
+    .manhourSummaryTable tbody tr:nth-child(even) td.summaryLabel {
+      background: #f8fafd;
+    }
     .manhourSummaryTable tbody tr:hover {
+      background: #eef3fb;
+    }
+    .manhourSummaryTable tbody tr:hover td.summaryLabel {
       background: #eef3fb;
     }
     #hResizer {
