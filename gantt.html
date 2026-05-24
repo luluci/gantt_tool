@@ -63,7 +63,7 @@
       
       flex: 0 0 var(--topH, auto);
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: nowrap;
       align-items: flex-start;
       overflow: auto;
@@ -77,8 +77,18 @@
       gap: 4px;
       min-width: 140px;
       flex-shrink: 0;
+      border-right: 1px solid #ccc;
+      padding-right: 8px;
     }
-    .topBlock label { font-weight: 600; font-size: 11px; color: #333; }
+    .topBlock label {
+      font-weight: 600; font-size: 11px; color: #333;
+    }
+    .topBlock select {
+      width: 80px;
+    }
+    .topBlock.totalMode select {
+      width: auto;
+    }
     .listbox {
       height: 110px; min-width: 120px; border: 1px solid var(--border); padding: 2px;
       overflow: auto; background: #fff;
@@ -89,7 +99,9 @@
     }
     .listbox option { padding: 2px 4px; }
     .rowBtns {
-      display: flex; gap: 4px; flex-wrap: wrap;
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
     }
     .rowBtns input[type="text"] {
       width: 100px;
@@ -1954,50 +1966,7 @@ const csLoaded = () => {
     toolBox.appendChild(bNamedSave);
     topPane.appendChild(toolBox);
 
-    const ph = mkListbox("selPhase", d.phases.map((p) => ({ value: p, label: p })), {
-      label: "phase",
-      onChange: () => {},
-    });
-    const phBody = document.createElement("div");
-    phBody.className = "listManageBody";
-    const phBtns = document.createElement("div");
-    phBtns.className = "listManageBtns";
-    const phInp = document.createElement("input");
-    phInp.type = "text";
-    phInp.placeholder = "new phase";
-    const phAdd = document.createElement("button");
-    phAdd.type = "button";
-    phAdd.textContent = "追加";
-    phAdd.addEventListener("click", () => {
-      const name = (phInp.value || "").trim();
-      if (!name || name === "all" || d.phases.includes(name)) return;
-      d.phases.push(name);
-      ensurePhaseKeys(state);
-      phInp.value = "";
-      markDirty(state, true);
-      renderAll();
-    });
-    const phDel = document.createElement("button");
-    phDel.type = "button";
-    phDel.textContent = "削除";
-    phDel.addEventListener("click", () => {
-      const pick = Array.from(ph.sel.selectedOptions).map((x) => x.value).filter((x) => x !== "all");
-      pick.forEach((p) => {
-        d.phases = d.phases.filter((x) => x !== p);
-      });
-      ensurePhaseKeys(state);
-      markDirty(state, true);
-      renderAll();
-    });
-    phBtns.appendChild(phInp);
-    phBtns.appendChild(phAdd);
-    phBtns.appendChild(phDel);
-    ph.wrap.removeChild(ph.sel);
-    phBody.appendChild(ph.sel);
-    phBody.appendChild(phBtns);
-    ph.wrap.insertBefore(phBody, ph.wrap.lastChild);
-    topPane.appendChild(ph.wrap);
-
+    // case設定
     const cs = mkListbox("selCase", d.cases.map((c) => ({ value: c.id, label: c.name || c.id })), {
       label: "case",
       onChange: (vals) => {
@@ -2048,8 +2017,9 @@ const csLoaded = () => {
     cs.wrap.insertBefore(csBody, cs.wrap.lastChild);
     topPane.appendChild(cs.wrap);
 
+    // 集計モード設定
     const aggBlock = document.createElement("div");
-    aggBlock.className = "topBlock";
+    aggBlock.className = "topBlock totalMode";
     const aggLabel = document.createElement("label");
     aggLabel.textContent = "集計モード";
     const aggSel = document.createElement("select");
@@ -2076,6 +2046,7 @@ const csLoaded = () => {
     aggBlock.appendChild(aggSel);
     topPane.appendChild(aggBlock);
 
+    // member設定
     const mem = document.createElement("div");
     mem.className = "topBlock";
     mem.innerHTML = "<label>member</label>";
@@ -2158,55 +2129,7 @@ const csLoaded = () => {
     mem.appendChild(memHol);
     topPane.appendChild(mem);
 
-    const stBlock = document.createElement("div");
-    stBlock.className = "topBlock";
-    stBlock.innerHTML = "<label>status</label>";
-    const stList = document.createElement("select");
-    stList.className = "listbox";
-    stList.multiple = true;
-    stList.size = 6;
-    d.statuses.forEach((s) => {
-      const o = document.createElement("option");
-      o.value = s.id;
-      o.textContent = s.name || s.id;
-      stList.appendChild(o);
-    });
-    const stRow = document.createElement("div");
-    stRow.className = "rowBtns";
-    const stInp = document.createElement("input");
-    stInp.type = "text";
-    stInp.placeholder = "新status名";
-    const stAdd = document.createElement("button");
-    stAdd.type = "button";
-    stAdd.textContent = "追加";
-    stAdd.addEventListener("click", () => {
-      const name = (stInp.value || "").trim();
-      if (!name) return;
-      d.statuses.push({ id: uid(), name });
-      stInp.value = "";
-      markDirty(state, true);
-      renderAll();
-    });
-    const stDel = document.createElement("button");
-    stDel.type = "button";
-    stDel.textContent = "削除";
-    stDel.addEventListener("click", () => {
-      const pick = Array.from(stList.selectedOptions).map((x) => x.value);
-      d.statuses = d.statuses.filter((s) => !pick.includes(s.id));
-      if (d.statuses.length === 0) d.statuses.push({ id: uid(), name: "Open" });
-      eachPlan(state, (pl) => {
-        if (pick.includes(pl.statusId)) pl.statusId = d.statuses[0] && d.statuses[0].id || null;
-      });
-      markDirty(state, true);
-      renderAll();
-    });
-    stRow.appendChild(stInp);
-    stRow.appendChild(stAdd);
-    stRow.appendChild(stDel);
-    stBlock.appendChild(stList);
-    stBlock.appendChild(stRow);
-    topPane.appendChild(stBlock);
-
+    // 共通休日設定
     const hol = document.createElement("div");
     hol.className = "topBlock";
     hol.innerHTML = "<label>共通休日</label>";
@@ -2250,6 +2173,107 @@ const csLoaded = () => {
     hol.appendChild(holList);
     hol.appendChild(holRow);
     topPane.appendChild(hol);
+
+    // phase設定
+    const ph = mkListbox("selPhase", d.phases.map((p) => ({ value: p, label: p })), {
+      label: "phase",
+      onChange: () => {},
+    });
+    const phBody = document.createElement("div");
+    phBody.className = "listManageBody";
+    const phBtns = document.createElement("div");
+    phBtns.className = "listManageBtns";
+    const phInp = document.createElement("input");
+    phInp.type = "text";
+    phInp.placeholder = "new phase";
+    const phAdd = document.createElement("button");
+    phAdd.type = "button";
+    phAdd.textContent = "追加";
+    phAdd.addEventListener("click", () => {
+      const name = (phInp.value || "").trim();
+      if (!name || name === "all" || d.phases.includes(name)) return;
+      d.phases.push(name);
+      ensurePhaseKeys(state);
+      phInp.value = "";
+      markDirty(state, true);
+      renderAll();
+    });
+    const phDel = document.createElement("button");
+    phDel.type = "button";
+    phDel.textContent = "削除";
+    phDel.addEventListener("click", () => {
+      const pick = Array.from(ph.sel.selectedOptions).map((x) => x.value).filter((x) => x !== "all");
+      pick.forEach((p) => {
+        d.phases = d.phases.filter((x) => x !== p);
+      });
+      ensurePhaseKeys(state);
+      markDirty(state, true);
+      renderAll();
+    });
+    phBtns.appendChild(phInp);
+    phBtns.appendChild(phAdd);
+    phBtns.appendChild(phDel);
+    ph.wrap.removeChild(ph.sel);
+    phBody.appendChild(ph.sel);
+    phBody.appendChild(phBtns);
+    ph.wrap.insertBefore(phBody, ph.wrap.lastChild);
+    topPane.appendChild(ph.wrap);
+
+    // status設定
+    const stBlock = document.createElement("div");
+    stBlock.className = "topBlock";
+    stBlock.innerHTML = "<label>status</label>";
+    const stList = document.createElement("select");
+    stList.className = "listbox";
+    stList.multiple = true;
+    stList.size = 6;
+    d.statuses.forEach((s) => {
+      const o = document.createElement("option");
+      o.value = s.id;
+      o.textContent = s.name || s.id;
+      stList.appendChild(o);
+    });
+    const stRow = document.createElement("div");
+    stRow.className = "rowBtns";
+    const stInp = document.createElement("input");
+    stInp.type = "text";
+    stInp.placeholder = "新status名";
+    stRow.appendChild(stInp);
+
+    const stRow2 = document.createElement("div");
+    stRow2.className = "rowBtns";
+    const stAdd = document.createElement("button");
+    stAdd.type = "button";
+    stAdd.textContent = "追加";
+    stAdd.addEventListener("click", () => {
+      const name = (stInp.value || "").trim();
+      if (!name) return;
+      d.statuses.push({ id: uid(), name });
+      stInp.value = "";
+      markDirty(state, true);
+      renderAll();
+    });
+    const stDel = document.createElement("button");
+    stDel.type = "button";
+    stDel.textContent = "削除";
+    stDel.addEventListener("click", () => {
+      const pick = Array.from(stList.selectedOptions).map((x) => x.value);
+      d.statuses = d.statuses.filter((s) => !pick.includes(s.id));
+      if (d.statuses.length === 0) d.statuses.push({ id: uid(), name: "Open" });
+      eachPlan(state, (pl) => {
+        if (pick.includes(pl.statusId)) pl.statusId = d.statuses[0] && d.statuses[0].id || null;
+      });
+      markDirty(state, true);
+      renderAll();
+    });
+    stRow2.appendChild(stAdd);
+    stRow2.appendChild(stDel);
+    stBlock.appendChild(stList);
+    stBlock.appendChild(stRow);
+    stBlock.appendChild(stRow2);
+    topPane.appendChild(stBlock);
+
+
   }
 
   function startEditLabel(span, onCommit) {
