@@ -117,6 +117,82 @@
     .listManageBtns input[type="text"] { width: 110px; }
     .listManageActionRow { display: flex; gap: 4px; flex-wrap: nowrap; }
     .listManageActionRow button { white-space: nowrap; }
+    .manhourSummaryPopup {
+      position: fixed;
+      z-index: 9999;
+      right: 12px;
+      top: 12px;
+      width: 420px;
+      max-height: 70vh;
+      overflow: hidden;
+      padding: 10px;
+      border: 1px solid #bbb;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      display: none;
+    }
+    .manhourSummaryTitle {
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .manhourSummaryToolbar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .manhourSummaryTableWrap {
+      max-width: 100%;
+      max-height: calc(70vh - 72px);
+      overflow: auto;
+      border: 1px solid #bfc6d1;
+    }
+    .manhourSummaryTable {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      border: 0;
+    }
+    .manhourSummaryTable th,
+    .manhourSummaryTable td {
+      border: 1px solid #cdd3dd;
+      padding: 4px 6px;
+    }
+    .manhourSummaryTable thead th {
+      background: #e8eef8;
+      color: #233449;
+      font-weight: 700;
+      text-align: center;
+    }
+    .manhourSummaryTable th.summaryAxis {
+      text-align: left;
+      min-width: 140px;
+      white-space: nowrap;
+    }
+    .manhourSummaryTable td.summaryLabel {
+      white-space: nowrap;
+    }
+    .manhourSummaryTable td.isNum {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .manhourSummaryTable th.summaryWeekCol,
+    .manhourSummaryTable td.summaryWeekCol {
+      width: 36px;
+      min-width: 36px;
+      max-width: 58px;
+      height: 26px;
+      line-height: 1.1;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .manhourSummaryTable tbody tr:nth-child(even) {
+      background: #f8fafd;
+    }
+    .manhourSummaryTable tbody tr:hover {
+      background: #eef3fb;
+    }
     #hResizer {
       flex: 0 0 6px; cursor: row-resize; background: #e0e0e0;
       border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
@@ -1540,6 +1616,13 @@ const csLoaded = () => {
         td.title = mh + "hr";
       });
     });
+    refreshManhourSummaryIfOpen();
+  }
+
+  function refreshManhourSummaryIfOpen() {
+    if (manhourSummaryPopup && manhourSummaryPopup.style.display !== "none") {
+      renderManhourSummaryPopup();
+    }
   }
 
   function getDateRange(state) {
@@ -1642,6 +1725,8 @@ const csLoaded = () => {
     caseFilter: [],
     totalPattern: TOTAL_PATTERN_CDM,
     totalPatternList: TOTAL_PATTERN_LIST_CDM,
+    manhourSummaryUnit: "week",
+    lastRenderedDates: [],
     selectedPlanId: null,
     selectedManhoursRow: null,
     leftPaneWidth: 450,
@@ -1712,6 +1797,11 @@ const csLoaded = () => {
   let commentPopupMeta = null;
   let commentPopupTarget = null;
   let commentPopupDate = "";
+  let manhourSummaryPopup = null;
+  let manhourSummaryUnitSel = null;
+  let manhourSummaryTitle = null;
+  let manhourSummaryHead = null;
+  let manhourSummaryBody = null;
   let commentLayer = null;
   let milestoneLayer = null;
   let milestoneLineLayer = null;
@@ -1910,6 +2000,355 @@ const csLoaded = () => {
     commentPopup.style.display = "block";
     commentPopupText.focus();
     //if (state.commentDisplayMode === "context") renderGantt();
+  }
+
+  function weekStartDate(ds) {
+    const d = parseYMD(ds);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : (1 - day);
+    d.setDate(d.getDate() + diff);
+    return toDateString(d);
+  }
+
+  function weekEndDate(ds) {
+    return addDays(weekStartDate(ds), 6);
+  }
+
+  function monthWeekKey(ds) {
+    const day = Number(ds.slice(8, 10));
+    const wk = day <= 7 ? 1 : day <= 14 ? 2 : day <= 21 ? 3 : 4;
+    return ds.slice(0, 7) + "-W" + String(wk);
+  }
+
+  function monthWeekLabel(key) {
+    const month = key.slice(5, 7);
+    const wk = Number(key.slice(-1));
+    if (wk === 1) return month + "/W1(1-7)";
+    if (wk === 2) return month + "/W2(8-14)";
+    if (wk === 3) return month + "/W3(15-21)";
+    return month + "/W4(22-end)";
+  }
+
+  function isCommonWorkday(ymd, state) {
+    if (state.data.commonHolidays.includes(ymd)) return false;
+    const wd = weekendTypeYMD(ymd);
+    return wd !== dayKindSaturday && wd !== dayKindSunday;
+  }
+
+  function buildSummaryNameMap() {
+    const caseMap = {};
+    const domainMap = {};
+    const projectMap = {};
+    const memberMap = {};
+    (state.data.cases || []).forEach((c) => { caseMap[c.id] = c.name || c.id; });
+    (state.data.members || []).forEach((m) => { memberMap[m.id] = m.name || m.id; });
+    (state.data.domains || []).forEach((dom) => {
+      domainMap[dom.id] = dom.name || dom.id;
+      (dom.projects || []).forEach((pr) => {
+        projectMap[pr.id] = pr.name || pr.id;
+      });
+    });
+    return { caseMap, domainMap, projectMap, memberMap };
+  }
+
+  function kindLabelOf(kind, id, maps) {
+    switch (kind) {
+      case TOTAL_KIND_CASE: return maps.caseMap[id] || id;
+      case TOTAL_KIND_DOMAIN: return maps.domainMap[id] || id;
+      case TOTAL_KIND_PROJECT: return maps.projectMap[id] || id;
+      case TOTAL_KIND_MEMBER: return maps.memberMap[id] || id;
+      default: return id;
+    }
+  }
+
+  function buildSummaryPeriods(dates, unit) {
+    const out = [];
+    const byKey = {};
+    (dates || []).forEach((ds) => {
+      const key = unit === "month" ? ds.slice(0, 7) : monthWeekKey(ds);
+      if (!byKey[key]) {
+        const month = key.slice(0, 7);
+        byKey[key] = {
+          key,
+          year: month.slice(0, 4),
+          month,
+          week: unit === "month" ? "" : monthWeekLabel(key),
+          weekNo: unit === "month" ? 0 : Number(key.slice(-1)),
+          weekRange: "",
+        };
+        out.push(byKey[key]);
+      }
+    });
+    out.forEach((p) => {
+      if (unit === "month") return;
+      const y = p.key.slice(0, 7);
+      const w = Number(p.key.slice(-1));
+      const sday = w === 1 ? "01" : w === 2 ? "08" : w === 3 ? "15" : "22";
+      const endDayNum = new Date(Number(y.slice(0, 4)), Number(y.slice(5, 7)), 0).getDate();
+      const eday = w === 1 ? "07" : w === 2 ? "14" : w === 3 ? "21" : String(endDayNum).padStart(2, "0");
+      p.weekRange = y + "-" + sday + " ～ " + y + "-" + eday;
+    });
+    return out;
+  }
+
+  function buildSummaryMatrix(dates, unit) {
+    const srcDates = Array.isArray(dates) ? dates : [];
+    const mhData = totalManhoursByPattern(state, srcDates, state.totalPatternList);
+    const periods = buildSummaryPeriods(srcDates, unit);
+    const periodIndex = {};
+    periods.forEach((p, i) => { periodIndex[p.key] = i; });
+    const workdays = new Array(periods.length).fill(0);
+    const maps = buildSummaryNameMap();
+    const rowOrder = [];
+    const rowMeta = {};
+    const rowValues = {};
+    const rowVisible = {};
+    const mkRow = (rowKey, depth, label, parentKey) => {
+      if (rowMeta[rowKey]) return;
+      rowMeta[rowKey] = { rowKey, depth, label, parentKey };
+      rowValues[rowKey] = new Array(periods.length).fill(0);
+      rowOrder.push(rowKey);
+      rowVisible[rowKey] = true;
+    };
+    mkRow("__total__", 0, "総合", null);
+
+    const ensureAdd = (rowKey, pidx, mh) => {
+      if (pidx == null || pidx < 0) return;
+      if (!rowValues[rowKey]) rowValues[rowKey] = new Array(periods.length).fill(0);
+      rowValues[rowKey][pidx] += mh;
+    };
+
+    const expandStateByKind = (kind) => {
+      if (kind === TOTAL_KIND_CASE) return state.caseExpanded || {};
+      if (kind === TOTAL_KIND_DOMAIN) return state.domainExpanded || {};
+      if (kind === TOTAL_KIND_PROJECT) return state.projectExpanded || {};
+      if (kind === TOTAL_KIND_MEMBER) return state.memberExpanded || {};
+      return {};
+    };
+    const isExpandedByKind = (kind, key) => {
+      const st = expandStateByKind(kind);
+      if (st[key] == null) return true;
+      return st[key] !== false;
+    };
+
+    const walkNode = (node, depth, keys, idPath) => {
+      if (!node || depth >= state.totalPatternList.length) return;
+      const kind = state.totalPatternList[depth];
+      const ids = Object.keys(node.detail || {});
+      const expandPrefix = idPath.length ? (idPath.join("::") + "::") : "";
+      ids.forEach((id) => {
+        const child = node.detail[id];
+        const tag = String(kind) + ":" + id;
+        const rowKey = keys.concat(tag).join("|");
+        const parentKey = keys.length ? keys.join("|") : "__total__";
+        mkRow(rowKey, depth + 1, kindLabelOf(kind, id, maps), parentKey);
+        const expandKey = expandPrefix + id;
+        const parentVisible = parentKey === "__total__" ? true : rowVisible[parentKey] !== false;
+        const expanded = isExpandedByKind(kind, expandKey);
+        rowVisible[rowKey] = parentVisible;
+        child.__rowKey = rowKey;
+        if (rowVisible[rowKey] && expanded) {
+          walkNode(child, depth + 1, keys.concat(tag), idPath.concat(id));
+        }
+      });
+    };
+
+    srcDates.forEach((ds) => {
+      const pkey = unit === "month" ? ds.slice(0, 7) : monthWeekKey(ds);
+      const pidx = periodIndex[pkey];
+      if (pidx != null && pidx >= 0 && isCommonWorkday(ds, state)) workdays[pidx] += 1;
+      const dateNode = mhData[ds];
+      if (!dateNode) return;
+      ensureAdd("__total__", pidx, dateNode.total || 0);
+      walkNode(dateNode, 0, [], []);
+      const stack = [dateNode];
+      while (stack.length) {
+        const cur = stack.pop();
+        if (!cur || !cur.detail) continue;
+        Object.keys(cur.detail).forEach((id) => {
+          const c = cur.detail[id];
+          if (c && c.__rowKey) ensureAdd(c.__rowKey, pidx, c.total || 0);
+          if (c && c.detail) stack.push(c);
+        });
+      }
+    });
+
+    return {
+      periods,
+      workdays,
+      rows: rowOrder.map((k) => ({
+        key: k,
+        depth: rowMeta[k].depth,
+        label: rowMeta[k].label,
+        values: rowValues[k] || new Array(periods.length).fill(0),
+      })).filter((r) => rowVisible[r.key] !== false),
+    };
+  }
+
+  function renderSummaryHead(periods, unit) {
+    if (!manhourSummaryHead) return;
+    manhourSummaryHead.innerHTML = "";
+    if (unit === "month") {
+      const trY = document.createElement("tr");
+      const th0 = document.createElement("th");
+      th0.textContent = "分類";
+      th0.rowSpan = 2;
+      th0.className = "summaryAxis";
+      trY.appendChild(th0);
+      let i = 0;
+      while (i < periods.length) {
+        let j = i + 1;
+        while (j < periods.length && periods[j].year === periods[i].year) j++;
+        const th = document.createElement("th");
+        th.colSpan = j - i;
+        th.textContent = periods[i].year;
+        trY.appendChild(th);
+        i = j;
+      }
+      manhourSummaryHead.appendChild(trY);
+      const trM = document.createElement("tr");
+      periods.forEach((p) => {
+        const th = document.createElement("th");
+        th.textContent = p.month.slice(5, 7);
+        trM.appendChild(th);
+      });
+      manhourSummaryHead.appendChild(trM);
+      return;
+    }
+    const trY = document.createElement("tr");
+    const th0 = document.createElement("th");
+    th0.textContent = "分類";
+    th0.rowSpan = 3;
+    th0.className = "summaryAxis";
+    trY.appendChild(th0);
+    let i = 0;
+    while (i < periods.length) {
+      let j = i + 1;
+      while (j < periods.length && periods[j].year === periods[i].year) j++;
+      const th = document.createElement("th");
+      th.colSpan = j - i;
+      th.textContent = periods[i].year;
+      trY.appendChild(th);
+      i = j;
+    }
+    manhourSummaryHead.appendChild(trY);
+    const trM = document.createElement("tr");
+    i = 0;
+    while (i < periods.length) {
+      let j = i + 1;
+      while (j < periods.length && periods[j].month === periods[i].month) j++;
+      const th = document.createElement("th");
+      th.colSpan = j - i;
+      th.textContent = periods[i].month.slice(5, 7);
+      trM.appendChild(th);
+      i = j;
+    }
+    manhourSummaryHead.appendChild(trM);
+    const trW = document.createElement("tr");
+    periods.forEach((p) => {
+      const th = document.createElement("th");
+      th.className = "summaryWeekCol";
+      th.textContent = String(p.weekNo) + "w";
+      th.title = p.weekRange || "";
+      trW.appendChild(th);
+    });
+    manhourSummaryHead.appendChild(trW);
+  }
+
+  function renderManhourSummaryPopup() {
+    if (!manhourSummaryPopup || !manhourSummaryBody || !manhourSummaryUnitSel) return;
+    const dates = getDateRange(state);
+    state.lastRenderedDates = dates.slice();
+    state.totalPatternList = getTotalPatternList(normalizeTotalPattern(state.totalPattern));
+    const unit = manhourSummaryUnitSel.value === "month" ? "month" : "week";
+    const from = dates[0] || "-";
+    const to = dates[dates.length - 1] || "-";
+    manhourSummaryTitle.textContent = "表示期間: " + from + " ～ " + to + " / mode: " + state.totalPattern;
+    const matrix = buildSummaryMatrix(dates, unit);
+    renderSummaryHead(matrix.periods, unit);
+    manhourSummaryBody.innerHTML = "";
+    matrix.rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      const tdLabel = document.createElement("td");
+      tdLabel.textContent = (row.depth > 1 ? " ".repeat((row.depth - 1) * 2) + "└ " : "") + row.label;
+      tdLabel.className = "summaryLabel";
+      tdLabel.style.paddingLeft = ((row.depth - 1) * 12 + 4) + "px";
+      tr.appendChild(tdLabel);
+      row.values.forEach((hrs, idx) => {
+        const td = document.createElement("td");
+        td.className = "isNum summaryWeekCol";
+        const wd = matrix.workdays[idx] || 0;
+        const mh = wd > 0 ? (hrs / (wd * 8)) : 0;
+        td.textContent = mh.toFixed(1);
+        td.title = hrs.toFixed(1) + "hr / " + wd + "稼働日";
+        tr.appendChild(td);
+      });
+      manhourSummaryBody.appendChild(tr);
+    });
+  }
+
+  function ensureManhourSummaryPopup() {
+    if (manhourSummaryPopup) return;
+    const pop = document.createElement("div");
+    pop.className = "manhourSummaryPopup";
+
+    const title = document.createElement("div");
+    title.className = "manhourSummaryTitle";
+    pop.appendChild(title);
+
+    const row = document.createElement("div");
+    row.className = "manhourSummaryToolbar";
+    const unitSel = document.createElement("select");
+    const oW = document.createElement("option");
+    oW.value = "week";
+    oW.textContent = "week";
+    const oM = document.createElement("option");
+    oM.value = "month";
+    oM.textContent = "month";
+    unitSel.appendChild(oW);
+    unitSel.appendChild(oM);
+    unitSel.value = state.manhourSummaryUnit || "week";
+    unitSel.addEventListener("change", () => {
+      state.manhourSummaryUnit = unitSel.value;
+      renderManhourSummaryPopup();
+    });
+    const bClose = document.createElement("button");
+    bClose.type = "button";
+    bClose.textContent = "閉じる";
+    bClose.addEventListener("click", () => { pop.style.display = "none"; });
+    row.appendChild(unitSel);
+    row.appendChild(bClose);
+    pop.appendChild(row);
+
+    const tableWrap = document.createElement("div");
+    tableWrap.className = "manhourSummaryTableWrap";
+    const table = document.createElement("table");
+    table.className = "manhourSummaryTable";
+    const thead = document.createElement("thead");
+    const tbody = document.createElement("tbody");
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
+    pop.appendChild(tableWrap);
+    document.body.appendChild(pop);
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && pop.style.display !== "none") pop.style.display = "none";
+    });
+
+    manhourSummaryPopup = pop;
+    manhourSummaryUnitSel = unitSel;
+    manhourSummaryTitle = title;
+    manhourSummaryHead = thead;
+    manhourSummaryBody = tbody;
+  }
+
+  function openManhourSummaryPopup() {
+    ensureManhourSummaryPopup();
+    state.totalPattern = normalizeTotalPattern(state.totalPattern);
+    state.totalPatternList = getTotalPatternList(state.totalPattern);
+    manhourSummaryPopup.style.display = "block";
+    renderManhourSummaryPopup();
   }
 
   function renderTop() {
@@ -2816,6 +3255,7 @@ const csLoaded = () => {
           inpP.addEventListener("change", () => {
             syncPhaseTotalsFromField(state, pl, ph, "planned", inpP.value);
             markDirty(state, true);
+            refreshManhourSummaryIfOpen();
           });
         }
         tdP.appendChild(inpP);
@@ -2834,6 +3274,7 @@ const csLoaded = () => {
           inpA.addEventListener("change", () => {
             syncPhaseTotalsFromField(state, pl, ph, "actual", inpA.value);
             markDirty(state, true);
+            refreshManhourSummaryIfOpen();
           });
         }
         tdA.appendChild(inpA);
@@ -3313,6 +3754,7 @@ const csLoaded = () => {
 
   function renderGantt(datesOverride) {
     const dates = datesOverride || getDateRange(state);
+    state.lastRenderedDates = dates.slice();
     const commentRefs = [];
     const tbl = document.createElement("table");
     tbl.className = "gantt";
@@ -3442,11 +3884,20 @@ const csLoaded = () => {
           scrollGanttToElem(today, { inline: "center" });
         });
 
+        // 人工概略集計
+        const bSummary = document.createElement("button");
+        bSummary.type = "button";
+        bSummary.textContent = "人工概略集計";
+        bSummary.addEventListener("click", () => {
+          openManhourSummaryPopup();
+        });
+
         toolBox.appendChild(saveBlock);
         toolBox.appendChild(bCommentMode);
         toolBox.appendChild(bLeftPaneToggle);
         toolBox.appendChild(bTopPaneToggle);
         toolBox.appendChild(bJumpToday);
+        toolBox.appendChild(bSummary);
         th1.appendChild(toolBox);
 
         tr.appendChild(th1);
@@ -4259,6 +4710,9 @@ const csLoaded = () => {
     ganttVScroll.innerHTML = "";
     ganttVScroll.appendChild(stage);
     drawCommentOverlay();
+    if (manhourSummaryPopup && manhourSummaryPopup.style.display !== "none") {
+      renderManhourSummaryPopup();
+    }
   }
 
   function actualHoursOnDate(pl, ds, state) {
