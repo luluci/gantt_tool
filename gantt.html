@@ -178,13 +178,17 @@
       background: #e8eef8;
     }
     .manhourSummaryTable td.summaryLabel {
-      white-space: nowrap;
       position: sticky;
       left: 0;
       z-index: 4;
       background: #fff;
       border-right: 1px solid #b9c2cf;
       box-shadow: 1px 0 0 #b9c2cf;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      max-width: 10em;
+      width: auto;
     }
     .manhourSummaryTable td.isNum {
       text-align: right;
@@ -2122,14 +2126,13 @@ const csLoaded = () => {
     const rowMeta = {};
     const rowValues = {};
     const rowVisible = {};
-    const mkRow = (rowKey, depth, label, parentKey) => {
+    const mkRow = (rowKey, depth, kind, rawLabel, parentKey) => {
       if (rowMeta[rowKey]) return;
-      rowMeta[rowKey] = { rowKey, depth, label, parentKey };
+      rowMeta[rowKey] = { rowKey, depth, kind, rawLabel, parentKey };
       rowValues[rowKey] = new Array(periods.length).fill(0);
       rowOrder.push(rowKey);
       rowVisible[rowKey] = true;
     };
-    mkRow("__total__", 0, "総合", null);
 
     const ensureAdd = (rowKey, pidx, mh) => {
       if (pidx == null || pidx < 0) return;
@@ -2150,24 +2153,49 @@ const csLoaded = () => {
       return st[key] !== false;
     };
 
-    const walkNode = (node, depth, keys, idPath) => {
+    const idsByKind = (kind, d_case, d_dom) => {
+      if (kind === TOTAL_KIND_CASE) {
+        return (state.data.cases || []).filter(caseMatchesCaseFilter).map((c) => c.id);
+      }
+      if (kind === TOTAL_KIND_DOMAIN) {
+        return (state.data.domains || []).map((dom) => dom.id);
+      }
+      if (kind === TOTAL_KIND_PROJECT) {
+        const out = [];
+        (state.data.domains || []).forEach((dom) => {
+          if (d_dom && d_dom.id !== dom.id) return;
+          (dom.projects || []).forEach((pr) => out.push(pr.id));
+        });
+        return out;
+      }
+      if (kind === TOTAL_KIND_MEMBER) {
+        return (state.data.members || []).map((m) => m.id);
+      }
+      return [];
+    };
+    const walkNode = (node, depth, keys, idPath, d_case, d_dom, d_prj, d_mem) => {
       if (!node || depth >= state.totalPatternList.length) return;
       const kind = state.totalPatternList[depth];
-      const ids = Object.keys(node.detail || {});
+      const ids = idsByKind(kind, d_case, d_dom);
       const expandPrefix = idPath.length ? (idPath.join("::") + "::") : "";
       ids.forEach((id) => {
         const child = node.detail[id];
+        if (!child) return;
         const tag = String(kind) + ":" + id;
         const rowKey = keys.concat(tag).join("|");
-        const parentKey = keys.length ? keys.join("|") : "__total__";
-        mkRow(rowKey, depth + 1, kindLabelOf(kind, id, maps), parentKey);
+        const parentKey = keys.length ? keys.join("|") : null;
+        mkRow(rowKey, depth, kind, kindLabelOf(kind, id, maps), parentKey);
         const expandKey = expandPrefix + id;
-        const parentVisible = parentKey === "__total__" ? true : rowVisible[parentKey] !== false;
+        const parentVisible = parentKey == null ? true : rowVisible[parentKey] !== false;
         const expanded = isExpandedByKind(kind, expandKey);
         rowVisible[rowKey] = parentVisible;
         child.__rowKey = rowKey;
         if (rowVisible[rowKey] && expanded) {
-          walkNode(child, depth + 1, keys.concat(tag), idPath.concat(id));
+          const nextCase = kind === TOTAL_KIND_CASE ? ((state.data.cases || []).find((c) => c.id === id) || d_case) : d_case;
+          const nextDom = kind === TOTAL_KIND_DOMAIN ? ((state.data.domains || []).find((dom) => dom.id === id) || d_dom) : d_dom;
+          const nextPrj = kind === TOTAL_KIND_PROJECT ? ((nextDom && (nextDom.projects || []).find((pr) => pr.id === id)) || d_prj) : d_prj;
+          const nextMem = kind === TOTAL_KIND_MEMBER ? ((state.data.members || []).find((m) => m.id === id) || d_mem) : d_mem;
+          walkNode(child, depth + 1, keys.concat(tag), idPath.concat(id), nextCase, nextDom, nextPrj, nextMem);
         }
       });
     };
@@ -2178,8 +2206,7 @@ const csLoaded = () => {
       if (pidx != null && pidx >= 0 && isCommonWorkday(ds, state)) workdays[pidx] += 1;
       const dateNode = mhData[ds];
       if (!dateNode) return;
-      ensureAdd("__total__", pidx, dateNode.total || 0);
-      walkNode(dateNode, 0, [], []);
+      walkNode(dateNode, 0, [], [], null, null, null, null);
       const stack = [dateNode];
       while (stack.length) {
         const cur = stack.pop();
@@ -2198,7 +2225,8 @@ const csLoaded = () => {
       rows: rowOrder.map((k) => ({
         key: k,
         depth: rowMeta[k].depth,
-        label: rowMeta[k].label,
+        kind: rowMeta[k].kind,
+        rawLabel: rowMeta[k].rawLabel,
         values: rowValues[k] || new Array(periods.length).fill(0),
       })).filter((r) => rowVisible[r.key] !== false),
     };
@@ -2289,9 +2317,11 @@ const csLoaded = () => {
     matrix.rows.forEach((row) => {
       const tr = document.createElement("tr");
       const tdLabel = document.createElement("td");
-      tdLabel.textContent = (row.depth > 1 ? " ".repeat((row.depth - 1) * 2) + "└ " : "") + row.label;
+      const viewLabel = row.rawLabel;
+      tdLabel.textContent = (row.depth > 0 ? " ".repeat(row.depth * 2) + "└ " : "") + viewLabel;
+      tdLabel.title = row.rawLabel;
       tdLabel.className = "summaryLabel";
-      tdLabel.style.paddingLeft = ((row.depth - 1) * 12 + 4) + "px";
+      tdLabel.style.paddingLeft = (row.depth * 12 + 4) + "px";
       tr.appendChild(tdLabel);
       row.values.forEach((hrs, idx) => {
         const td = document.createElement("td");
