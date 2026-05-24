@@ -2199,7 +2199,7 @@ const csLoaded = () => {
 
   function buildSummaryMatrix(dates, unit) {
     const srcDates = Array.isArray(dates) ? dates : [];
-    const mhData = totalManhoursByPattern(state, srcDates, state.totalPatternList);
+    const mhData = totalManhoursByPattern2(state, srcDates, state.totalPatternList);
     const periods = buildSummaryPeriods(srcDates, unit);
     const periodIndex = {};
     periods.forEach((p, i) => { periodIndex[p.key] = i; });
@@ -2209,9 +2209,9 @@ const csLoaded = () => {
     const rowMeta = {};
     const rowValues = {};
     const rowVisible = {};
-    const mkRow = (rowKey, depth, kind, rawLabel, parentKey) => {
+    const mkRow = (rowKey, depth, kind, rawLabel, parentKey, pathIds, isFilter) => {
       if (rowMeta[rowKey]) return;
-      rowMeta[rowKey] = { rowKey, depth, kind, rawLabel, parentKey };
+      rowMeta[rowKey] = { rowKey, depth, kind, rawLabel, parentKey, pathIds, isFilter: !!isFilter };
       rowValues[rowKey] = new Array(periods.length).fill(0);
       rowOrder.push(rowKey);
       rowVisible[rowKey] = true;
@@ -2235,7 +2235,6 @@ const csLoaded = () => {
       if (st[key] == null) return true;
       return st[key] !== false;
     };
-
     const idsByKind = (kind, d_case, d_dom) => {
       if (kind === TOTAL_KIND_CASE) {
         return (state.data.cases || []).filter(caseMatchesCaseFilter).map((c) => c.id);
@@ -2256,50 +2255,111 @@ const csLoaded = () => {
       }
       return [];
     };
-    const walkNode = (node, depth, keys, idPath, d_case, d_dom, d_prj, d_mem) => {
-      if (!node || depth >= state.totalPatternList.length) return;
+    const entityByKind = (kind, id, d_dom) => {
+      if (kind === TOTAL_KIND_CASE) return (state.data.cases || []).find((c) => c.id === id) || null;
+      if (kind === TOTAL_KIND_DOMAIN) return (state.data.domains || []).find((dom) => dom.id === id) || null;
+      if (kind === TOTAL_KIND_PROJECT) {
+        if (d_dom) return ((d_dom.projects || []).find((pr) => pr.id === id) || null);
+        let hit = null;
+        (state.data.domains || []).some((dom) => {
+          hit = (dom.projects || []).find((pr) => pr.id === id) || null;
+          return !!hit;
+        });
+        return hit;
+      }
+      if (kind === TOTAL_KIND_MEMBER) return (state.data.members || []).find((m) => m.id === id) || null;
+      return null;
+    };
+    const pathKeyFromIds = (ids) => ids.length ? (ids.join("::")) : "";
+    const walkNode = (depth, keys, idPath, d_case, d_dom, d_prj, d_mem) => {
+      if (depth >= state.totalPatternList.length) return;
       const kind = state.totalPatternList[depth];
       const ids = idsByKind(kind, d_case, d_dom);
       const expandPrefix = idPath.length ? (idPath.join("::") + "::") : "";
       ids.forEach((id) => {
-        const child = node.detail[id];
-        if (!child) return;
+        const ent = entityByKind(kind, id, d_dom);
+        if (!ent) return;
         const tag = String(kind) + ":" + id;
         const rowKey = keys.concat(tag).join("|");
         const parentKey = keys.length ? keys.join("|") : null;
-        mkRow(rowKey, depth, kind, kindLabelOf(kind, id, maps), parentKey);
+        const rowPathIds = idPath.concat(id);
+        mkRow(rowKey, depth, kind, kindLabelOf(kind, id, maps), parentKey, rowPathIds, false);
         const expandKey = expandPrefix + id;
         const parentVisible = parentKey == null ? true : rowVisible[parentKey] !== false;
         const expanded = isExpandedByKind(kind, expandKey);
         rowVisible[rowKey] = parentVisible;
-        child.__rowKey = rowKey;
         if (rowVisible[rowKey] && expanded) {
-          const nextCase = kind === TOTAL_KIND_CASE ? ((state.data.cases || []).find((c) => c.id === id) || d_case) : d_case;
-          const nextDom = kind === TOTAL_KIND_DOMAIN ? ((state.data.domains || []).find((dom) => dom.id === id) || d_dom) : d_dom;
-          const nextPrj = kind === TOTAL_KIND_PROJECT ? ((nextDom && (nextDom.projects || []).find((pr) => pr.id === id)) || d_prj) : d_prj;
-          const nextMem = kind === TOTAL_KIND_MEMBER ? ((state.data.members || []).find((m) => m.id === id) || d_mem) : d_mem;
-          walkNode(child, depth + 1, keys.concat(tag), idPath.concat(id), nextCase, nextDom, nextPrj, nextMem);
+          const nextCase = kind === TOTAL_KIND_CASE ? ent : d_case;
+          const nextDom = kind === TOTAL_KIND_DOMAIN ? ent : d_dom;
+          const nextPrj = kind === TOTAL_KIND_PROJECT ? ent : d_prj;
+          const nextMem = kind === TOTAL_KIND_MEMBER ? ent : d_mem;
+          walkNode(depth + 1, keys.concat(tag), idPath.concat(id), nextCase, nextDom, nextPrj, nextMem);
         }
       });
     };
+    const walkFilterNode = (depth, keys, idPath, d_case, d_dom, d_prj, d_mem, filterCaseKey, filterCaseLabel) => {
+      if (depth >= state.totalPatternList.length) return;
+      const kind = state.totalPatternList[depth];
+      const expandPrefix = idPath.length ? (idPath.join("::") + "::") : "";
+      if (kind === TOTAL_KIND_CASE && depth === 0) {
+        const rowKey = keys.concat("filterCase:" + filterCaseKey).join("|");
+        const parentKey = keys.length ? keys.join("|") : null;
+        const rowPathIds = idPath.concat(filterCaseKey);
+        mkRow(rowKey, depth, kind, filterCaseLabel, parentKey, rowPathIds, true);
+        const parentVisible = parentKey == null ? true : rowVisible[parentKey] !== false;
+        const expanded = isExpandedByKind(kind, filterCaseKey);
+        rowVisible[rowKey] = parentVisible;
+        if (rowVisible[rowKey] && expanded) {
+          walkFilterNode(depth + 1, keys.concat("filterCase:" + filterCaseKey), idPath.concat(filterCaseKey), d_case, d_dom, d_prj, d_mem, filterCaseKey, filterCaseLabel);
+        }
+        return;
+      }
+      const ids = idsByKind(kind, d_case, d_dom);
+      ids.forEach((id) => {
+        const ent = entityByKind(kind, id, d_dom);
+        if (!ent) return;
+        const tag = String(kind) + ":" + id;
+        const rowKey = keys.concat(tag).join("|");
+        const parentKey = keys.length ? keys.join("|") : null;
+        const rowPathIds = idPath.concat(id);
+        mkRow(rowKey, depth, kind, kindLabelOf(kind, id, maps), parentKey, rowPathIds, true);
+        const expandKey = expandPrefix + id;
+        const parentVisible = parentKey == null ? true : rowVisible[parentKey] !== false;
+        const expanded = isExpandedByKind(kind, expandKey);
+        rowVisible[rowKey] = parentVisible;
+        if (rowVisible[rowKey] && expanded) {
+          const nextCase = kind === TOTAL_KIND_CASE ? ent : d_case;
+          const nextDom = kind === TOTAL_KIND_DOMAIN ? ent : d_dom;
+          const nextPrj = kind === TOTAL_KIND_PROJECT ? ent : d_prj;
+          const nextMem = kind === TOTAL_KIND_MEMBER ? ent : d_mem;
+          walkFilterNode(depth + 1, keys.concat(tag), idPath.concat(id), nextCase, nextDom, nextPrj, nextMem, filterCaseKey, filterCaseLabel);
+        }
+      });
+    };
+
+    // 行は構造ベースで生成（工数ゼロでも表示）
+    if ((state.caseFilter || []).length >= 2 && state.totalPatternList[0] === TOTAL_KIND_CASE) {
+      const selectedCases = state.caseFilter
+        .map((id) => (state.data.cases || []).find((c) => c.id === id))
+        .filter((c) => !!c);
+      if (selectedCases.length >= 2) {
+        const filterCaseKey = selectedCases.map((c) => c.id).join("|");
+        const filterCaseLabel = selectedCases.map((c) => c.name || c.id).join(" + ");
+        walkFilterNode(0, [], [], null, null, null, null, filterCaseKey, filterCaseLabel);
+      }
+    }
+    walkNode(0, [], [], null, null, null, null);
 
     srcDates.forEach((ds) => {
       const pkey = unit === "month" ? ds.slice(0, 7) : monthWeekKey(ds);
       const pidx = periodIndex[pkey];
       if (pidx != null && pidx >= 0 && isCommonWorkday(ds, state)) workdays[pidx] += 1;
-      const dateNode = mhData[ds];
-      if (!dateNode) return;
-      walkNode(dateNode, 0, [], [], null, null, null, null);
-      const stack = [dateNode];
-      while (stack.length) {
-        const cur = stack.pop();
-        if (!cur || !cur.detail) continue;
-        Object.keys(cur.detail).forEach((id) => {
-          const c = cur.detail[id];
-          if (c && c.__rowKey) ensureAdd(c.__rowKey, pidx, c.total || 0);
-          if (c && c.detail) stack.push(c);
-        });
-      }
+      rowOrder.forEach((rk) => {
+        const pathIds = rowMeta[rk] && Array.isArray(rowMeta[rk].pathIds) ? rowMeta[rk].pathIds : [];
+        const key = (rowMeta[rk] && rowMeta[rk].isFilter ? "filter::" : "") + pathKeyFromIds(pathIds);
+        const v = mhData[key] && mhData[key][ds] ? mhData[key][ds] : 0;
+        ensureAdd(rk, pidx, v);
+      });
     });
 
     return {
