@@ -3580,6 +3580,9 @@ const csLoaded = () => {
       tr.dataset.mhKind = mhKind;
       tr.dataset.depth = depth;
       switch (kind) {
+        case TOTAL_KIND_CASE:
+          if (d_case) tr.dataset.caseId = d_case.id;
+          break;
         case TOTAL_KIND_DOMAIN:
           if (d_dom) tr.dataset.domainId = d_dom.id;
           break;
@@ -3610,7 +3613,7 @@ const csLoaded = () => {
       // データ内容が空の集計行を一括で作成
       let expandKey = "";
 
-      const createManhoursRowCase = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+      const createManhoursRowCase = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal) => {
         //
         if (ptn_idx >= ptns.length) return;
         // 末尾データチェック
@@ -3629,14 +3632,14 @@ const csLoaded = () => {
             const isExpanded = state.caseExpanded[selectedCaseKey] !== false;
 
             const row = isTail
-              ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "caseSelectedTotal", selectedCaseLabel, null, null, null, null, null, depth)
-              : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "caseSelectedTotal", selectedCaseLabel, isExpanded, selectedCaseKey, null, null, null, null, null, depth);
+              ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "caseSelectedTotal", selectedCaseLabel, d_case, d_dom, d_prj, d_ver, d_mem, depth)
+              : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "caseSelectedTotal", selectedCaseLabel, isExpanded, selectedCaseKey, d_case, d_dom, d_prj, d_ver, d_mem, depth);
 
             mhRowList.push(row);
             mhRowMap.caseFilter = [ row, {} ];
 
             // 子階層処理
-            if (isExpanded) createManhoursRow(mhRowList, mhRowMap.caseFilter[1], ptns, ptn_idx+1, selectedCaseKey+"::", depth+1, true);
+            if (isExpanded) createManhoursRow(mhRowList, mhRowMap.caseFilter[1], ptns, ptn_idx+1, selectedCaseKey+"::", d_case, d_dom, d_prj, d_ver, d_mem, depth+1, true);
           }
         }
         // case
@@ -3647,18 +3650,18 @@ const csLoaded = () => {
           const isExpanded = state.caseExpanded[caseKey] !== false;
 
           const row = isTail
-            ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "case", cse.name, cse, null, null, null, null, depth)
-            : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "case", cse.name, isExpanded, caseKey, cse, null, null, null, null, depth);
+            ? createManhoursRowTailHeader(TOTAL_KIND_CASE, "case", cse.name, cse, d_dom, d_prj, d_ver, d_mem, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_CASE, "case", cse.name, isExpanded, caseKey, cse, d_dom, d_prj, d_ver, d_mem, depth);
 
           mhRowList.push(row);
           mhRowMap[cse.id] = [ row, {} ];
 
           // 子階層処理
-          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[cse.id][1], ptns, ptn_idx+1, caseKey+"::", depth+1, false);
+          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[cse.id][1], ptns, ptn_idx+1, caseKey+"::", cse, d_dom, d_prj, d_ver, d_mem, depth+1, false);
         });
       }
 
-      const createManhoursRowDomain = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+      const createManhoursRowDomain = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal = false) => {
         //
         if (ptn_idx >= ptns.length) return;
         // 末尾データチェック
@@ -3670,43 +3673,46 @@ const csLoaded = () => {
           const isExpanded = state.domainExpanded[domainKey] !== false;
           const mhKind = isSelectedTotal ? "domainSelectedTotal" : "domain";
           const row = isTail
-            ? createManhoursRowTailHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, null, dom, null, null, null, depth)
-            : createManhoursRowBranchHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, isExpanded, domainKey, null, dom, null, null, null, depth);
+            ? createManhoursRowTailHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, d_case, dom, d_prj, d_ver, d_mem, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_DOMAIN, mhKind, dom.name, isExpanded, domainKey, d_case, dom, d_prj, d_ver, d_mem, depth);
 
           mhRowList.push(row);
           mhRowMap[dom.id] = [ row, {} ];
 
           // 子階層処理
-          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[dom.id][1], ptns, ptn_idx+1, domainKey+"::", depth+1, isSelectedTotal);
+          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[dom.id][1], ptns, ptn_idx+1, domainKey+"::", d_case, dom, d_prj, d_ver, d_mem, depth+1, isSelectedTotal);
         });
       }
 
-      const createManhoursRowProject = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+      const createManhoursRowProject = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal = false) => {
         //
         if (ptn_idx >= ptns.length) return;
         // 末尾データチェック
         const isTail = (ptn_idx == ptns.length-1);
         // 集計行作成
         state.data.domains.forEach((dom) => {
+          // domainの子階層としてprojectを表示するとき、実際にdomainの配下にあるprojectのみ表示する
+          if (d_dom && d_dom.id !== dom.id) return;
+
           (dom.projects || []).forEach((pr) => {
             const projectKey = expandKey + pr.id;
             if (state.projectExpanded[projectKey] == null) state.projectExpanded[projectKey] = (depth < 1);
             const isExpanded = state.projectExpanded[projectKey] !== false;
             const mhKind = isSelectedTotal ? "projectSelectedTotal" : "project";
             const row = isTail
-              ? createManhoursRowTailHeader(TOTAL_KIND_PROJECT, mhKind, pr.name, null, dom, pr, null, null, depth)
-              : createManhoursRowBranchHeader(TOTAL_KIND_PROJECT, mhKind, pr.name, isExpanded, projectKey, null, dom, pr, null, null, depth);
+              ? createManhoursRowTailHeader(TOTAL_KIND_PROJECT, mhKind, pr.name, d_case, dom, pr, d_ver, d_mem, depth)
+              : createManhoursRowBranchHeader(TOTAL_KIND_PROJECT, mhKind, pr.name, isExpanded, projectKey, d_case, dom, pr, d_ver, d_mem, depth);
 
             mhRowList.push(row);
             mhRowMap[pr.id] = [ row, {} ];
 
             // 子階層処理
-            if (isExpanded) createManhoursRow(mhRowList, mhRowMap[pr.id][1], ptns, ptn_idx+1, projectKey+"::", depth+1, isSelectedTotal);
+            if (isExpanded) createManhoursRow(mhRowList, mhRowMap[pr.id][1], ptns, ptn_idx+1, projectKey+"::", d_case, dom, pr, d_ver, d_mem, depth+1, isSelectedTotal);
           });
         });
       }
 
-      const createManhoursRowMember = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) => {
+      const createManhoursRowMember = (mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal = false) => {
         //
         if (ptn_idx >= ptns.length) return;
         // 末尾データチェック
@@ -3718,32 +3724,32 @@ const csLoaded = () => {
           const isExpanded = state.memberExpanded[memKey] !== false;
           const mhKind = isSelectedTotal ? "memberSelectedTotal" : "member";
           const row = isTail
-            ? createManhoursRowTailHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, null, null, null, null, mem, depth)
-            : createManhoursRowBranchHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, isExpanded, memKey, null, null, null, null, mem, depth);
+            ? createManhoursRowTailHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, d_case, d_dom, d_prj, d_ver, mem, depth)
+            : createManhoursRowBranchHeader(TOTAL_KIND_MEMBER, mhKind, mem.name, isExpanded, memKey, d_case, d_dom, d_prj, d_ver, mem, depth);
 
           mhRowList.push(row);
           mhRowMap[mem.id] = [ row, {} ];
 
           // 子階層処理
-          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[mem.id][1], ptns, ptn_idx+1, memKey+"::", depth+1, isSelectedTotal);
+          if (isExpanded) createManhoursRow(mhRowList, mhRowMap[mem.id][1], ptns, ptn_idx+1, memKey+"::", d_case, d_dom, d_prj, d_ver, mem, depth+1, isSelectedTotal);
         });
       }
 
-      function createManhoursRow(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal = false) {
+      function createManhoursRow(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal) {
         if (ptns.length <= ptn_idx) return;
         const ptn = ptns[ptn_idx];
         switch (ptn) {
           case TOTAL_KIND_CASE:
-            createManhoursRowCase(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            createManhoursRowCase(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal);
             break;
           case TOTAL_KIND_DOMAIN:
-            createManhoursRowDomain(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            createManhoursRowDomain(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal);
             break;
           case TOTAL_KIND_PROJECT:
-            createManhoursRowProject(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            createManhoursRowProject(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal);
             break;
           case TOTAL_KIND_MEMBER:
-            createManhoursRowMember(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, depth, isSelectedTotal);
+            createManhoursRowMember(mhRowList, mhRowMap, ptns, ptn_idx, expandKey, d_case, d_dom, d_prj, d_ver, d_mem, depth, isSelectedTotal);
             break;
         }
       }
@@ -3783,7 +3789,7 @@ const csLoaded = () => {
       // header要素まで作成
       const mhRowList = [];
       const mhRowMap = {};
-      createManhoursRow(mhRowList, mhRowMap, ptns, 0, expandKey, 0, false);
+      createManhoursRow(mhRowList, mhRowMap, ptns, 0, expandKey, null, null, null, null, null, 0, false);
       // body要素作成
       createManhoursRowBody(mhData, mhRowMap);
       mhRowList.forEach((tr) => {
