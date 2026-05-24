@@ -75,7 +75,6 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      min-width: 140px;
       flex-shrink: 0;
       border-right: 1px solid #ccc;
       padding-right: 8px;
@@ -89,7 +88,14 @@
     .topBlock.totalMode select {
       width: auto;
     }
-    .listbox {
+    .topBlock .listHeader {
+      display: flex;
+      gap: 4px;
+      align-items: flex-end;
+      justify-content: space-between;
+      padding-left: 4px;
+    }
+    .topBlock .listbox {
       height: 110px; min-width: 120px; border: 1px solid var(--border); padding: 2px;
       overflow: auto; background: #fff;
 
@@ -98,7 +104,7 @@
       }
     }
     .listbox option { padding: 2px 4px; }
-    .rowBtns {
+    .topBlock .rowBtns {
       display: flex;
       gap: 4px;
       flex-wrap: wrap;
@@ -109,6 +115,8 @@
     .listManageBody { display: flex; gap: 6px; align-items: flex-start; }
     .listManageBtns { display: flex; flex-direction: column; gap: 4px; min-width: 110px; }
     .listManageBtns input[type="text"] { width: 110px; }
+    .listManageActionRow { display: flex; gap: 4px; flex-wrap: nowrap; }
+    .listManageActionRow button { white-space: nowrap; }
     #hResizer {
       flex: 0 0 6px; cursor: row-resize; background: #e0e0e0;
       border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
@@ -1911,6 +1919,8 @@ const csLoaded = () => {
     function mkListbox(id, items, opts) {
       const wrap = document.createElement("div");
       wrap.className = "topBlock";
+      const head = document.createElement("div");
+      head.className = "listHeader";
       const lab = document.createElement("label");
       lab.textContent = opts.label;
       const sel = document.createElement("select");
@@ -1924,8 +1934,6 @@ const csLoaded = () => {
         o.textContent = it.label;
         sel.appendChild(o);
       });
-      const row = document.createElement("div");
-      row.className = "rowBtns";
       const bClear = document.createElement("button");
       bClear.type = "button";
       bClear.textContent = "選択解除";
@@ -1933,14 +1941,17 @@ const csLoaded = () => {
         Array.from(sel.options).forEach((o) => { o.selected = false; });
         opts.onChange(Array.from(sel.selectedOptions).map((x) => x.value));
       });
-      row.appendChild(bClear);
+      head.appendChild(lab);
+      head.appendChild(bClear);
       sel.addEventListener("change", () => {
         opts.onChange(Array.from(sel.selectedOptions).map((x) => x.value));
       });
-      wrap.appendChild(lab);
+      const footer = document.createElement("div");
+      footer.className = "listManageBody";
+      wrap.appendChild(head);
       wrap.appendChild(sel);
-      wrap.appendChild(row);
-      return { wrap, sel };
+      wrap.appendChild(footer);
+      return { wrap, sel, footer };
     }
 
     // ツールボタンBOX
@@ -1978,8 +1989,6 @@ const csLoaded = () => {
     Array.from(cs.sel.options).forEach((o) => {
       o.selected = state.caseFilter && state.caseFilter.includes(o.value);
     });
-    const csBody = document.createElement("div");
-    csBody.className = "listManageBody";
     const csBtns = document.createElement("div");
     csBtns.className = "listManageBtns";
     const csInp = document.createElement("input");
@@ -2008,13 +2017,13 @@ const csLoaded = () => {
       markDirty(state, true);
       renderAll();
     });
+    const csActions = document.createElement("div");
+    csActions.className = "listManageActionRow";
+    csActions.appendChild(csAdd);
+    csActions.appendChild(csDel);
     csBtns.appendChild(csInp);
-    csBtns.appendChild(csAdd);
-    csBtns.appendChild(csDel);
-    cs.wrap.removeChild(cs.sel);
-    csBody.appendChild(cs.sel);
-    csBody.appendChild(csBtns);
-    cs.wrap.insertBefore(csBody, cs.wrap.lastChild);
+    csBtns.appendChild(csActions);
+    cs.footer.appendChild(csBtns);
     topPane.appendChild(cs.wrap);
 
     // 集計モード設定
@@ -2147,6 +2156,8 @@ const csLoaded = () => {
     holRow.className = "rowBtns";
     const holInp = document.createElement("input");
     holInp.type = "date";
+    const holRow2 = document.createElement("div");
+    holRow2.className = "rowBtns";
     const holAdd = document.createElement("button");
     holAdd.type = "button";
     holAdd.textContent = "追加";
@@ -2168,10 +2179,11 @@ const csLoaded = () => {
       renderAll();
     });
     holRow.appendChild(holInp);
-    holRow.appendChild(holAdd);
-    holRow.appendChild(holDel);
+    holRow2.appendChild(holAdd);
+    holRow2.appendChild(holDel);
     hol.appendChild(holList);
     hol.appendChild(holRow);
+    hol.appendChild(holRow2);
     topPane.appendChild(hol);
 
     // phase設定
@@ -2179,8 +2191,6 @@ const csLoaded = () => {
       label: "phase",
       onChange: () => {},
     });
-    const phBody = document.createElement("div");
-    phBody.className = "listManageBody";
     const phBtns = document.createElement("div");
     phBtns.className = "listManageBtns";
     const phInp = document.createElement("input");
@@ -2210,13 +2220,13 @@ const csLoaded = () => {
       markDirty(state, true);
       renderAll();
     });
+    const phActions = document.createElement("div");
+    phActions.className = "listManageActionRow";
+    phActions.appendChild(phAdd);
+    phActions.appendChild(phDel);
     phBtns.appendChild(phInp);
-    phBtns.appendChild(phAdd);
-    phBtns.appendChild(phDel);
-    ph.wrap.removeChild(ph.sel);
-    phBody.appendChild(ph.sel);
-    phBody.appendChild(phBtns);
-    ph.wrap.insertBefore(phBody, ph.wrap.lastChild);
+    phBtns.appendChild(phActions);
+    ph.footer.appendChild(phBtns);
     topPane.appendChild(ph.wrap);
 
     // status設定
