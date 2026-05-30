@@ -1,29 +1,29 @@
 ---
 name: gantt-tool-feature
-description: Add or modify features in this workspace's single-file local Gantt chart tool. Use when Codex is asked to change C:\home\js\gantt_tool\gantt.html, adjust behavior tied to gantt.js data, inspect the embedded JavaScript/CSS/DOM structure, or implement UI, rendering, save, comment, filter, manhour, date, plan-cell, or viewer-mode features for this tool.
+description: このワークスペースにある単一ファイル構成のローカル用ガントチャートツールへ機能を追加または変更する。Codex が C:\home\js\gantt_tool\gantt.html を変更する場合、gantt.js データに紐づく挙動を調整する場合、埋め込み JavaScript/CSS/DOM 構造を調査する場合、またはこのツールの UI、描画、保存、コメント、フィルタ、工数、日付、予定セル、閲覧者モードの機能を実装する場合に使用する。
 ---
 
-# Gantt Tool Feature
+# ガントツール機能
 
-## Workflow
+## 作業手順
 
-1. Treat `gantt.html` as the only editable HTML target unless the user explicitly changes repository instructions.
-2. Read `references/gantt-html-map.md` before making non-trivial changes.
-3. Keep JavaScript and CSS embedded in `gantt.html`; keep chart data in `gantt.js` or same-pattern data files.
-4. Preserve UTF-8 without BOM and avoid git operations.
-  - ただし、windowsのpowershellを使用する場合は文字化け対策としてUTF-8 with BOMで保存する。
-5. Prefer small, localized edits around the existing helpers and render functions.
-6. Validate by static inspection and, when useful, browser-manual instructions; automated test design is not required.
+1. ユーザーがリポジトリ指示を明示的に変更しない限り、編集可能な HTML 対象は `gantt.html` のみとして扱う。
+2. 重要な変更を行う前に `references/gantt-html-map.md` を読む。
+3. JavaScript と CSS は `gantt.html` 内に埋め込んだままにし、チャートデータは `gantt.js` または同じ形式のデータファイルに保持する。
+4. UTF-8、BOM なしを維持し、git 操作は避ける。
+   - Windows の PowerShell を使用する場合は、文字化け対策のために BOM 付き UTF-8 で保存しない。
+5. 既存のヘルパー関数や描画関数の周辺で、小さな局所的な編集を優先する。
+6. 静的確認で検証し、必要に応じてブラウザでの手動確認手順も示す。自動テスト設計は不要。
 
-## Change Strategy
+## 変更方針
 
-- Normalize or migrate persisted fields in `normalizeLoaded` before rendering or saving new data.
-- Add state defaults to the `state` object and mirror persistent state into `state.data` before `saveData`.
-- Use `markDirty(state, true)` for user-visible data changes that should trigger save prompts.
-- Re-render with `renderAll()` for broad structure changes and targeted DOM refresh helpers for cell-only updates.
-- Preserve viewer mode by checking `window.__GANTT_VIEWER_MODE__` paths before exposing editing UI.
-- Avoid rewriting large render blocks when a helper or narrow event handler change is sufficient.
+- 新しいデータを描画または保存する前に、`normalizeLoaded` で永続化済みフィールドを正規化または移行する。
+- 状態のデフォルト値は `state` オブジェクトに追加し、永続化する状態は `saveData` の前に `state.data` へ反映する。
+- 保存確認を出すべきユーザー可視のデータ変更には `markDirty(state, true)` を使用する。
+- 広範な構造変更では `renderAll()` で再描画し、セルだけの更新では対象を絞った DOM 更新ヘルパーを使う。
+- 編集 UI を開く前に `window.__GANTT_VIEWER_MODE__` の経路を確認し、閲覧者モードを維持する。
+- ヘルパーや共通のイベントハンドラ変更で十分な場合は、大きな描画ブロックを書き換えない。
 
-## References
+## 参考資料
 
-- Use `references/gantt-html-map.md` for the current architecture, key functions, data shape, and safe insertion points.
+- 現在のアーキテクチャ、主要関数、データ形状、安全な挿入位置については `references/gantt-html-map.md` を使用する。

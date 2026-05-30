@@ -1,81 +1,81 @@
-# gantt.html Map
+# gantt.html マップ
 
-## Scope
+## 対象範囲
 
-- Main editable file: `gantt.html`.
-- Data file: `gantt.js`, loaded by `<script src="gantt.js">` and expected to assign `window.__GANTT_DATA__`.
-- Other HTML files are not the normal edit target.
-- The app is a local single-page tool for Chrome or Edge; JavaScript and CSS live inside `gantt.html`.
+- 主な編集対象ファイル: `gantt.html`。
+- データファイル: `gantt.js`。`<script src="gantt.js">` で読み込まれ、`window.__GANTT_DATA__` を代入する想定。
+- その他の HTML ファイルは通常の編集対象ではない。
+- このアプリは Chrome または Edge で使うローカル用の単一ページツールであり、JavaScript と CSS は `gantt.html` 内に記述されている。
 
-## Page Structure
+## ページ構造
 
-- Head initializes `window.__GANTT_DATA__ = null` and `window.__GANTT_VIEWER_MODE__ = false`.
-- `gantt.js` is loaded before the embedded application script.
-- Body root:
-  - `#topPane`: toolbar, master data, filters, save controls.
-  - `#hResizer`: vertical sizing control between top and bottom panes.
-  - `#bottomPane`: main split layout.
-  - `#leftPane`: editable tree/input pane.
-  - `#resizer`: horizontal split control.
-  - `#rightWrap > #ganttVScroll`: rendered Gantt table, overlays, comments, milestones.
+- head では `window.__GANTT_DATA__ = null` と `window.__GANTT_VIEWER_MODE__ = false` を初期化する。
+- `gantt.js` は埋め込みアプリケーションスクリプトより前に読み込まれる。
+- body 直下のルート:
+  - `#topPane`: ツールバー、マスターデータ、フィルタ、保存コントロール。
+  - `#hResizer`: 上下ペイン間の縦方向サイズ調整コントロール。
+  - `#bottomPane`: メインの分割レイアウト。
+  - `#leftPane`: 編集可能なツリーと入力ペイン。
+  - `#resizer`: 横方向の分割コントロール。
+  - `#rightWrap > #ganttVScroll`: 描画済みのガント表、オーバーレイ、コメント、マイルストーン。
 
-## Core Data Shape
+## 主要データ形状
 
-`emptyData()` returns the baseline persisted structure:
+`emptyData()` は永続化される基準構造を返す。
 
-- `phases`: array, always includes `"all"`.
-- `cases`: `{ id, name }[]`.
-- `members`: `{ id, name, defaultColor, holidays }[]`.
-- `statuses`: `{ id, name }[]`.
-- `commonHolidays`: `YYYY-MM-DD[]`.
-- `milestones`: object keyed by date.
-- `domains`: hierarchy of domains, projects, versions, tasks, plans.
-- `totalPattern`: one of the supported manhour aggregation patterns.
+- `phases`: 配列。常に `"all"` を含む。
+- `cases`: `{ id, name }[]`。
+- `members`: `{ id, name, defaultColor, holidays }[]`。
+- `statuses`: `{ id, name }[]`。
+- `commonHolidays`: `YYYY-MM-DD[]`。
+- `milestones`: 日付をキーにしたオブジェクト。
+- `domains`: ドメイン、プロジェクト、バージョン、タスク、予定の階層。
+- `totalPattern`: 対応している工数集計パターンのいずれか。
 
-Plan objects commonly include:
+予定オブジェクトでは、主に次の項目を扱う。
 
-- Identity and ownership: `id`, `name`, `caseId`, `ownerId`, `statusId`, `color`.
-- Dates: `plannedStart`, `plannedEnd`, `actualStart`, `actualEnd`.
-- Workload: `utilization`, `phaseHours`, `cells`, `actualCells`.
-- Mode/comment fields: `isPlanOrActual`, `comment`.
+- 識別と担当: `id`, `name`, `caseId`, `ownerId`, `statusId`, `color`。
+- 日付: `plannedStart`, `plannedEnd`, `actualStart`, `actualEnd`。
+- 作業量: `utilization`, `phaseHours`, `cells`, `actualCells`。
+- モードとコメント: `isPlanOrActual`, `comment`。
 
-Cell objects are keyed by `YYYY-MM-DD`. Planned cells use `plan.cells`; actual cells use `plan.actualCells`. Active cells generally contain a `util` object, with optional `util.value` for non-default utilization.
+セルオブジェクトは `YYYY-MM-DD` をキーにする。予定セルは `plan.cells`、実績セルは `plan.actualCells` を使う。有効なセルには通常 `util` オブジェクトが含まれ、デフォルト以外の稼働率には任意で `util.value` が入る。
 
-## Important Functions
+## 重要な関数
 
-- Date helpers: `toDateString`, `parseYMD`, `addDays`, `daysBetween`.
-- Data defaults/migration: `emptyData`, `normalizeLoaded`, `migrateCellsToDayModel`, `migratePlanCellsToDayModel`.
-- Save serialization: `cloneForSave`, `serializeJs`, `saveData`, `saveViewer`, `saveNamedData`.
-- Plan traversal and lookup: `eachPlan`, `findPlan`, `findTaskForPlan`.
-- Dirty/save status: `markDirty`, `updateToolSaveStatus`.
-- Cell logic: `getCellsByKind`, `cellIsOn`, `effectiveCellUtil`, `dayHoursAll`, `recomputeAllPhaseFromCells`.
-- Date range and business-day logic: `getDateRange`, `isHolidayDate`, `capacityForDate`, `computePlannedEnd`, `shiftIndexByBusinessDays`.
-- Comments/milestones: `getNodeComment`, `setNodeComment`, `getCellComment`, `setCellComment`, `getMilestoneComment`, `openCommentPopup`.
-- Manhour summary: `totalManhoursByPattern`, `refreshManhoursRowsDom`, `buildSummaryMatrix`, `renderManhourSummaryPopup`.
-- Rendering entry points: `renderTop`, `renderInputPane`, `renderGantt`, `renderAll`.
-- Gantt interactions: `appendPlanDayCells`, `appendTaskPlanRows`, `onCellPointerDown`, `onCellPointerMove`, `inputCellUtil`.
+- 日付ヘルパー: `toDateString`, `parseYMD`, `addDays`, `daysBetween`。
+- データのデフォルトと移行: `emptyData`, `normalizeLoaded`, `migrateCellsToDayModel`, `migratePlanCellsToDayModel`。
+- 保存シリアライズ: `cloneForSave`, `serializeJs`, `saveData`, `saveViewer`, `saveNamedData`。
+- 予定の走査と検索: `eachPlan`, `findPlan`, `findTaskForPlan`。
+- 変更状態と保存状態: `markDirty`, `updateToolSaveStatus`。
+- セル処理: `getCellsByKind`, `cellIsOn`, `effectiveCellUtil`, `dayHoursAll`, `recomputeAllPhaseFromCells`。
+- 日付範囲と営業日処理: `getDateRange`, `isHolidayDate`, `capacityForDate`, `computePlannedEnd`, `shiftIndexByBusinessDays`。
+- コメントとマイルストーン: `getNodeComment`, `setNodeComment`, `getCellComment`, `setCellComment`, `getMilestoneComment`, `openCommentPopup`。
+- 工数集計: `totalManhoursByPattern`, `refreshManhoursRowsDom`, `buildSummaryMatrix`, `renderManhourSummaryPopup`。
+- 描画の入口: `renderTop`, `renderInputPane`, `renderGantt`, `renderAll`。
+- ガント操作: `appendPlanDayCells`, `appendTaskPlanRows`, `onCellPointerDown`, `onCellPointerMove`, `inputCellUtil`。
 
-## Render Flow
+## 描画フロー
 
-1. `initData()` loads and normalizes `window.__GANTT_DATA__`, copies persisted UI state into `state`, recomputes plan totals, and sets viewer-mode defaults.
-2. `renderAll()` syncs layout CSS variables, toggles major panes, then calls `renderTop()`, `renderInputPane()`, and `renderGantt()`.
-3. `renderTop()` builds toolbar, filters, master lists, save controls, and mode toggles.
-4. `renderInputPane()` builds editable hierarchy controls for domains, projects, versions, tasks, plans, holidays, milestones, and details.
-5. `renderGantt()` builds calendar headers, manhour rows, hierarchy rows, plan/actual rows, overlays, comment cards, and milestone lines.
+1. `initData()` は `window.__GANTT_DATA__` を読み込んで正規化し、永続化された UI 状態を `state` にコピーし、予定合計を再計算して閲覧者モードのデフォルトを設定する。
+2. `renderAll()` はレイアウト用 CSS 変数を同期し、主要ペインの表示を切り替えたうえで、`renderTop()`、`renderInputPane()`、`renderGantt()` を呼び出す。
+3. `renderTop()` はツールバー、フィルタ、マスター一覧、保存コントロール、モード切り替えを構築する。
+4. `renderInputPane()` はドメイン、プロジェクト、バージョン、タスク、予定、休日、マイルストーン、詳細の編集可能な階層コントロールを構築する。
+5. `renderGantt()` はカレンダーヘッダー、工数行、階層行、予定行と実績行、オーバーレイ、コメントカード、マイルストーン線を構築する。
 
-## Safe Insertion Points
+## 安全な挿入位置
 
-- New persisted app setting: add default in `emptyData`, normalize in `normalizeLoaded`, copy into `state` in `initData`, update save source in the relevant UI handler.
-- New transient UI state: add to `state` only, then use in render/event handlers.
-- New top-pane control: add inside `renderTop`, persist with `markDirty` if it changes saved data.
-- New left-pane plan field: add inside `makePlanNode`, normalize in `normalizeLoaded`, and update calculations if it affects totals or dates.
-- New date/cell behavior: use `getCellsByKind`, `cellIsOn`, `effectiveCellUtil`, and update DOM through `updatePlanCellDomByData` or `renderGantt`.
-- New manhour aggregation behavior: update total pattern constants, `normalizeTotalPattern`, `getTotalPatternList`, `totalManhoursByPattern`, and summary rendering together.
-- New save/export behavior: preserve `saveData`, `saveViewer`, and `saveNamedData` distinctions.
+- 新しい永続化アプリ設定: `emptyData` にデフォルトを追加し、`normalizeLoaded` で正規化し、`initData` で `state` にコピーし、該当 UI ハンドラで保存元を更新する。
+- 新しい一時 UI 状態: `state` のみに追加し、描画処理またはイベントハンドラで使用する。
+- 新しい上部ペインのコントロール: `renderTop` 内に追加し、保存データを変更する場合は `markDirty` で永続化対象にする。
+- 新しい左ペインの予定項目: `makePlanNode` 内に追加し、`normalizeLoaded` で正規化し、合計や日付に影響する場合は計算処理も更新する。
+- 新しい日付またはセルの挙動: `getCellsByKind`、`cellIsOn`、`effectiveCellUtil` を使用し、`updatePlanCellDomByData` または `renderGantt` で DOM を更新する。
+- 新しい工数集計の挙動: 合計パターン定数、`normalizeTotalPattern`、`getTotalPatternList`、`totalManhoursByPattern`、集計表示をまとめて更新する。
+- 新しい保存またはエクスポートの挙動: `saveData`、`saveViewer`、`saveNamedData` の区別を維持する。
 
-## Constraints
+## 制約
 
-- Do not rely on modules, bundlers, or server-side APIs.
-- Keep behavior compatible with direct local-file usage and WebView2 host integration where existing `wri` hooks are present.
-- Do not assume automated tests exist; use focused inspection and concise manual verification steps.
-- Avoid large-scale refactors unless the user explicitly requests them.
+- モジュール、バンドラ、サーバーサイド API に依存しない。
+- ローカルファイルを直接開く使い方と、既存の `wri` フックが存在する WebView2 ホスト連携の両方に対応した挙動を維持する。
+- 自動テストが存在する前提にしない。焦点を絞った確認と簡潔な手動確認手順を使う。
+- ユーザーが明示的に依頼しない限り、大規模なリファクタリングは避ける。

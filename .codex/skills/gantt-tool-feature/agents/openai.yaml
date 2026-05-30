@@ -1,4 +1,4 @@
 interface:
-  display_name: "Gantt Tool Feature"
-  short_description: "Add features to this workspace gantt.html safely."
-  default_prompt: "Use this skill when modifying C:\\home\\js\\gantt_tool\\gantt.html to add or adjust Gantt tool features."
+  display_name: "ガントツール機能"
+  short_description: "このワークスペースの gantt.html に安全に機能を追加します。"
+  default_prompt: "gantt_tool\\gantt.html を変更してガントツールの機能を追加または調整する場合は、このスキルを使用してください。"
