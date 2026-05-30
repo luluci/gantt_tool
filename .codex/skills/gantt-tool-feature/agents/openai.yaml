@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gantt Tool Feature"
+  short_description: "Add features to this workspace gantt.html safely."
+  default_prompt: "Use this skill when modifying C:\\home\\js\\gantt_tool\\gantt.html to add or adjust Gantt tool features."
