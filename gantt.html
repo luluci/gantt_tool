@@ -1055,6 +1055,7 @@ const csLoaded = () => {
     if (!d.treeFilter.domains || typeof d.treeFilter.domains !== "object") d.treeFilter.domains = {};
     if (!d.treeFilter.projects || typeof d.treeFilter.projects !== "object") d.treeFilter.projects = {};
     if (!d.treeFilter.versions || typeof d.treeFilter.versions !== "object") d.treeFilter.versions = {};
+    d.filterDisplayLevel = d.filterDisplayLevel || "project";  // デフォルトは project レベル
     d.totalPattern = normalizeTotalPattern(d.totalPattern);
     d.topPaneVisible = d.topPaneVisible == null ? true : !!d.topPaneVisible;
     d.inputPaneVisible = d.inputPaneVisible == null ? true : !!d.inputPaneVisible;
@@ -1857,6 +1858,7 @@ const csLoaded = () => {
     domainExpanded: {},
     projectExpanded: {},
     memberExpanded: {},
+    filterDisplayLevel: "project",  // フィルタポップアップの表示層制御: "domain" | "project" | "version"
     dirty: false,
     fileHandle: null,
     drag: null,
@@ -1884,6 +1886,7 @@ const csLoaded = () => {
     state.domainExpanded = state.data.domainExpanded || {};
     state.projectExpanded = state.data.projectExpanded || {};
     state.memberExpanded = state.data.memberExpanded || {};
+    state.filterDisplayLevel = state.data.filterDisplayLevel || "project";
     // Initialize tree filter defaults (domains/projects/versions). 未定義項目は true にする
     if (!state.data.treeFilter || typeof state.data.treeFilter !== "object") state.data.treeFilter = { domains: {}, projects: {}, versions: {} };
     if (!state.data.treeFilter.domains) state.data.treeFilter.domains = {};
@@ -2162,7 +2165,9 @@ const csLoaded = () => {
     const title = document.createElement("div");
     title.style.fontWeight = "600";
     title.style.marginBottom = "6px";
-    title.textContent = "Filter: domain > project > version";
+    title.style.cursor = "pointer";
+    title.style.userSelect = "none";
+    // title の内容は renderFilterTree() で動的に更新されるので、ここでは空にしておく
     pop.appendChild(title);
 
     const container = document.createElement("div");
@@ -2197,12 +2202,56 @@ const csLoaded = () => {
   }
 
   function renderFilterTree() {
+    if (!filterPopup) return;
+    const titleDiv = filterPopup.querySelector("div");
+    const level = state.filterDisplayLevel || "project";
+    
+    // title をクリック可能な要素で構築（domain / project / version の選択肢を表示）
+    titleDiv.innerHTML = "";
+    const titleText = [
+      { level: "domain", label: "domain" },
+      { level: "project", label: "project" },
+      { level: "version", label: "version" }
+    ];
+    let first = true;
+    titleText.forEach((item) => {
+      if (!first) {
+        const sep = document.createElement("span");
+        sep.textContent = " > ";
+        sep.style.margin = "0 3px";
+        titleDiv.appendChild(sep);
+      }
+      const span = document.createElement("span");
+      span.textContent = item.label;
+      span.style.cursor = "pointer";
+      if (level === item.level) {
+        span.style.fontWeight = "700";
+        span.style.textDecoration = "underline";
+        span.style.color = "#1a73e8";
+      } else {
+        span.style.fontWeight = "400";
+        span.style.color = "#555";
+      }
+      span.addEventListener("click", () => {
+        state.filterDisplayLevel = item.level;
+        state.data.filterDisplayLevel = item.level;
+        markDirty(state, true);
+        renderFilterTree();
+      });
+      titleDiv.appendChild(span);
+      first = false;
+    });
+    
+    // ツリーコンテナを更新
     if (!filterTreeContainer) return;
     filterTreeContainer.innerHTML = "";
     const tf = state.data.treeFilter || { domains: {}, projects: {}, versions: {} };
+    
     state.data.domains.forEach((dom) => {
       const ddiv = document.createElement("div");
       ddiv.style.marginBottom = "6px";
+      
+      // domain 行
       const dchk = document.createElement("input");
       dchk.type = "checkbox";
       dchk.checked = !!tf.domains[dom.id];
@@ -2216,40 +2265,46 @@ const csLoaded = () => {
       dlabel.appendChild(document.createTextNode(dom.name || dom.id));
       ddiv.appendChild(dlabel);
 
-      (dom.projects || []).forEach((pr) => {
-        const pdiv = document.createElement("div");
-        pdiv.style.marginLeft = "14px";
-        const pchk = document.createElement("input");
-        pchk.type = "checkbox";
-        pchk.checked = !!tf.projects[pr.id];
-        pchk.addEventListener("change", (e) => { onFilterChange("project", pr.id, e.target.checked); });
-        const plabel = document.createElement("label");
-        plabel.style.display = "flex";
-        plabel.style.alignItems = "center";
-        plabel.style.gap = "6px";
-        plabel.appendChild(pchk);
-        plabel.appendChild(document.createTextNode(pr.name || pr.id));
-        pdiv.appendChild(plabel);
+      // project を表示するかどうかは filterDisplayLevel によって決まる
+      if (level !== "domain") {
+        (dom.projects || []).forEach((pr) => {
+          const pdiv = document.createElement("div");
+          pdiv.style.marginLeft = "14px";
+          const pchk = document.createElement("input");
+          pchk.type = "checkbox";
+          pchk.checked = !!tf.projects[pr.id];
+          pchk.addEventListener("change", (e) => { onFilterChange("project", pr.id, e.target.checked); });
+          const plabel = document.createElement("label");
+          plabel.style.display = "flex";
+          plabel.style.alignItems = "center";
+          plabel.style.gap = "6px";
+          plabel.appendChild(pchk);
+          plabel.appendChild(document.createTextNode(pr.name || pr.id));
+          pdiv.appendChild(plabel);
 
-        (pr.versions || []).forEach((vr) => {
-          const vdiv = document.createElement("div");
-          vdiv.style.marginLeft = "24px";
-          const vchk = document.createElement("input");
-          vchk.type = "checkbox";
-          vchk.checked = !!tf.versions[vr.id];
-          vchk.addEventListener("change", (e) => { onFilterChange("version", vr.id, e.target.checked); });
-          const vlabel = document.createElement("label");
-          vlabel.style.display = "flex";
-          vlabel.style.alignItems = "center";
-          vlabel.style.gap = "6px";
-          vlabel.appendChild(vchk);
-          vlabel.appendChild(document.createTextNode(vr.name || vr.id));
-          vdiv.appendChild(vlabel);
-          pdiv.appendChild(vdiv);
+          // version を表示するかどうかは filterDisplayLevel が "version" のときのみ
+          if (level === "version") {
+            (pr.versions || []).forEach((vr) => {
+              const vdiv = document.createElement("div");
+              vdiv.style.marginLeft = "24px";
+              const vchk = document.createElement("input");
+              vchk.type = "checkbox";
+              vchk.checked = !!tf.versions[vr.id];
+              vchk.addEventListener("change", (e) => { onFilterChange("version", vr.id, e.target.checked); });
+              const vlabel = document.createElement("label");
+              vlabel.style.display = "flex";
+              vlabel.style.alignItems = "center";
+              vlabel.style.gap = "6px";
+              vlabel.appendChild(vchk);
+              vlabel.appendChild(document.createTextNode(vr.name || vr.id));
+              vdiv.appendChild(vlabel);
+              pdiv.appendChild(vdiv);
+            });
+          }
+
+          ddiv.appendChild(pdiv);
         });
-
-        ddiv.appendChild(pdiv);
-      });
+      }
 
       filterTreeContainer.appendChild(ddiv);
     });
@@ -4962,6 +5017,7 @@ const csLoaded = () => {
 
     // DPV/Task 描画にフィルタを適用する
     const tf = (state.data && state.data.treeFilter) ? state.data.treeFilter : { domains: {}, projects: {}, versions: {} };
+    const displayLevel = state.filterDisplayLevel || "project";
     state.data.domains.forEach((dom) => {
       if (tf.domains && tf.domains[dom.id] === false) return; // domain が OFF の場合は配下をスキップ
       addDPVRow(dom.name, dom, "domain");
@@ -4969,8 +5025,12 @@ const csLoaded = () => {
         if (tf.projects && tf.projects[pr.id] === false) return; // project OFF
         addDPVRow(pr.name, pr, "project");
         (pr.versions || []).forEach((vr) => {
-          if (tf.versions && tf.versions[vr.id] === false) return; // version OFF
-          addDPVRow(vr.name, vr, "version");
+          // filterDisplayLevel が "version" でない場合、version 行をスキップし、配下のタスクを直接表示
+          const showVersionRow = (displayLevel === "version");
+          if (showVersionRow) {
+            if (tf.versions && tf.versions[vr.id] === false) return; // version OFF かつ表示対象
+            addDPVRow(vr.name, vr, "version");
+          }
           (vr.tasks || []).forEach((tk) => {
             appendTaskPlanRows(dom, pr, vr, tk);
           });
