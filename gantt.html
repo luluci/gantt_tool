@@ -2233,6 +2233,7 @@ const csLoaded = () => {
   // フィルタ用ポップアップとロジック
   let filterPopup = null;
   let filterTreeContainer = null;
+  let filterToggleButton = null;
   function ensureFilterPopup() {
     if (filterPopup) return;
     const pop = document.createElement("div");
@@ -2250,16 +2251,31 @@ const csLoaded = () => {
 
     const row = document.createElement("div");
     row.className = "filter-button-row";
+    const bClear = document.createElement("button");
+    bClear.type = "button";
+    bClear.textContent = "フィルタ解除";
+    row.appendChild(bClear);
     const bClose = document.createElement("button");
     bClose.type = "button";
     bClose.textContent = "閉じる";
     row.appendChild(bClose);
     pop.appendChild(row);
+
+    bClear.addEventListener("click", () => {
+      const tf = state.data && state.data.treeFilter ? state.data.treeFilter : { domains: {}, projects: {}, versions: {} };
+      Object.keys(tf.domains).forEach((key) => { tf.domains[key] = true; });
+      Object.keys(tf.projects).forEach((key) => { tf.projects[key] = true; });
+      Object.keys(tf.versions).forEach((key) => { tf.versions[key] = true; });
+      renderFilterTree();
+      renderGantt();
+    });
+
     bClose.addEventListener("click", () => { pop.style.display = "none"; });
 
     window.addEventListener("mousedown", (e) => {
       if (pop.style.display === "none") return;
       if (e.target === pop || pop.contains(e.target)) return;
+      if (filterToggleButton && (e.target === filterToggleButton || filterToggleButton.contains(e.target))) return;
       pop.style.display = "none";
     });
 
@@ -4387,6 +4403,7 @@ const csLoaded = () => {
         // Filter ボタン
         const isFilterActive = isTreeFilterActive();
         const bFilter = document.createElement("button");
+        filterToggleButton = bFilter;
         bFilter.type = "button";
         bFilter.textContent = isFilterActive ? "Filter： ON" : "Filter：OFF";
         bFilter.classList.toggle("active", isFilterActive);
