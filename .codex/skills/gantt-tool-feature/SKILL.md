@@ -11,6 +11,7 @@ description: Add or modify features in this workspace's single-file local Gantt 
 2. Read `references/gantt-html-map.md` before making non-trivial changes.
 3. Keep JavaScript and CSS embedded in `gantt.html`; keep chart data in `gantt.js` or same-pattern data files.
 4. Preserve UTF-8 without BOM and avoid git operations.
+  - ただし、windowsのpowershellを使用する場合は文字化け対策としてUTF-8 with BOMで保存する。
 5. Prefer small, localized edits around the existing helpers and render functions.
 6. Validate by static inspection and, when useful, browser-manual instructions; automated test design is not required.
 
