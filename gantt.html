@@ -4396,8 +4396,13 @@ const csLoaded = () => {
         const bSummary = document.createElement("button");
         bSummary.type = "button";
         bSummary.textContent = "人工概略集計";
-        bSummary.addEventListener("click", () => {
-          openManhourSummaryPopup();
+        bSummary.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (manhourSummaryPopup && manhourSummaryPopup.style.display && manhourSummaryPopup.style.display !== "none") {
+            manhourSummaryPopup.style.display = "none";
+          } else {
+            openManhourSummaryPopup();
+          }
         });
 
         // Filter ボタン
