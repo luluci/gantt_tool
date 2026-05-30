@@ -896,6 +896,79 @@
       white-space: nowrap;
       font-size: 12px;
     }
+
+    /* Filter Popup Styles */
+    .filter-popup {
+      position: fixed;
+      z-index: 9999;
+      right: 8px;
+      top: 8px;
+      min-width: 260px;
+      max-height: 70vh;
+      overflow: auto;
+      padding: 8px;
+      border: 1px solid #bbb;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .filter-title {
+      font-weight: 600;
+      margin-bottom: 6px;
+      user-select: none;
+    }
+
+    .filter-title-level {
+      cursor: pointer;
+      font-weight: 400;
+      color: #555;
+      transition: all 0.15s ease;
+    }
+
+    .filter-title-level.selected {
+      font-weight: 700;
+      text-decoration: underline;
+      color: #1a73e8;
+    }
+
+    .filter-title-sep {
+      margin: 0 3px;
+      cursor: default;
+    }
+
+    .filter-tree-container {
+      margin: 8px 0;
+    }
+
+    .filter-tree-container > div {
+      margin-bottom: 6px;
+    }
+
+    .filter-tree-container label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .filter-tree-container > div > label {
+      font-weight: 600;
+    }
+
+    .filter-tree-container > div > div {
+      margin-left: 14px;
+    }
+
+    .filter-tree-container > div > div > div {
+      margin-left: 24px;
+    }
+
+    .filter-button-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
   </style>
 </head>
 <body>
@@ -2149,35 +2222,20 @@ const csLoaded = () => {
   function ensureFilterPopup() {
     if (filterPopup) return;
     const pop = document.createElement("div");
-    pop.style.position = "fixed";
-    pop.style.zIndex = "9999";
-    pop.style.right = "8px";
-    pop.style.top = "8px";
-    pop.style.minWidth = "260px";
-    pop.style.maxHeight = "70vh";
-    pop.style.overflow = "auto";
-    pop.style.padding = "8px";
-    pop.style.border = "1px solid #bbb";
-    pop.style.background = "#fff";
-    pop.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+    pop.className = "filter-popup";
     pop.style.display = "none";
 
     const title = document.createElement("div");
-    title.style.fontWeight = "600";
-    title.style.marginBottom = "6px";
-    title.style.cursor = "pointer";
-    title.style.userSelect = "none";
-    // title の内容は renderFilterTree() で動的に更新されるので、ここでは空にしておく
+    title.className = "filter-title";
     pop.appendChild(title);
 
     const container = document.createElement("div");
+    container.className = "filter-tree-container";
     filterTreeContainer = container;
     pop.appendChild(container);
 
     const row = document.createElement("div");
-    row.style.display = "flex";
-    row.style.gap = "6px";
-    row.style.marginTop = "8px";
+    row.className = "filter-button-row";
     const bClose = document.createElement("button");
     bClose.type = "button";
     bClose.textContent = "閉じる";
@@ -2203,7 +2261,7 @@ const csLoaded = () => {
 
   function renderFilterTree() {
     if (!filterPopup) return;
-    const titleDiv = filterPopup.querySelector("div");
+    const titleDiv = filterPopup.querySelector(".filter-title");
     const level = state.filterDisplayLevel || "project";
     
     // title をクリック可能な要素で構築（domain / project / version の選択肢を表示）
@@ -2218,20 +2276,12 @@ const csLoaded = () => {
       if (!first) {
         const sep = document.createElement("span");
         sep.textContent = " > ";
-        sep.style.margin = "0 3px";
+        sep.className = "filter-title-sep";
         titleDiv.appendChild(sep);
       }
       const span = document.createElement("span");
       span.textContent = item.label;
-      span.style.cursor = "pointer";
-      if (level === item.level) {
-        span.style.fontWeight = "700";
-        span.style.textDecoration = "underline";
-        span.style.color = "#1a73e8";
-      } else {
-        span.style.fontWeight = "400";
-        span.style.color = "#555";
-      }
+      span.className = "filter-title-level" + (level === item.level ? " selected" : "");
       span.addEventListener("click", () => {
         state.filterDisplayLevel = item.level;
         state.data.filterDisplayLevel = item.level;
@@ -2249,7 +2299,6 @@ const csLoaded = () => {
     
     state.data.domains.forEach((dom) => {
       const ddiv = document.createElement("div");
-      ddiv.style.marginBottom = "6px";
       
       // domain 行
       const dchk = document.createElement("input");
@@ -2257,10 +2306,6 @@ const csLoaded = () => {
       dchk.checked = !!tf.domains[dom.id];
       dchk.addEventListener("change", (e) => { onFilterChange("domain", dom.id, e.target.checked); });
       const dlabel = document.createElement("label");
-      dlabel.style.fontWeight = "600";
-      dlabel.style.display = "flex";
-      dlabel.style.alignItems = "center";
-      dlabel.style.gap = "6px";
       dlabel.appendChild(dchk);
       dlabel.appendChild(document.createTextNode(dom.name || dom.id));
       ddiv.appendChild(dlabel);
@@ -2269,15 +2314,11 @@ const csLoaded = () => {
       if (level !== "domain") {
         (dom.projects || []).forEach((pr) => {
           const pdiv = document.createElement("div");
-          pdiv.style.marginLeft = "14px";
           const pchk = document.createElement("input");
           pchk.type = "checkbox";
           pchk.checked = !!tf.projects[pr.id];
           pchk.addEventListener("change", (e) => { onFilterChange("project", pr.id, e.target.checked); });
           const plabel = document.createElement("label");
-          plabel.style.display = "flex";
-          plabel.style.alignItems = "center";
-          plabel.style.gap = "6px";
           plabel.appendChild(pchk);
           plabel.appendChild(document.createTextNode(pr.name || pr.id));
           pdiv.appendChild(plabel);
@@ -2286,15 +2327,11 @@ const csLoaded = () => {
           if (level === "version") {
             (pr.versions || []).forEach((vr) => {
               const vdiv = document.createElement("div");
-              vdiv.style.marginLeft = "24px";
               const vchk = document.createElement("input");
               vchk.type = "checkbox";
               vchk.checked = !!tf.versions[vr.id];
               vchk.addEventListener("change", (e) => { onFilterChange("version", vr.id, e.target.checked); });
               const vlabel = document.createElement("label");
-              vlabel.style.display = "flex";
-              vlabel.style.alignItems = "center";
-              vlabel.style.gap = "6px";
               vlabel.appendChild(vchk);
               vlabel.appendChild(document.createTextNode(vr.name || vr.id));
               vdiv.appendChild(vlabel);
