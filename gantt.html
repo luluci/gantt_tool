@@ -897,6 +897,13 @@
       font-size: 12px;
     }
 
+    .ganttToolBox button.active {
+      background: #1a73e8;
+      color: #fff;
+      border-color: #1a73e8;
+      border-radius: 4px;
+    }
+
     /* Filter Popup Styles */
     .filter-popup {
       position: fixed;
@@ -2214,6 +2221,13 @@ const csLoaded = () => {
     commentPopup.style.display = "block";
     commentPopupText.focus();
     //if (state.commentDisplayMode === "context") renderGantt();
+  }
+
+  function isTreeFilterActive() {
+    const tf = state.data && state.data.treeFilter ? state.data.treeFilter : { domains: {}, projects: {}, versions: {} };
+    return Object.values(tf.domains).some((v) => v === false)
+      || Object.values(tf.projects).some((v) => v === false)
+      || Object.values(tf.versions).some((v) => v === false);
   }
 
   // フィルタ用ポップアップとロジック
@@ -4371,9 +4385,11 @@ const csLoaded = () => {
         });
 
         // Filter ボタン
+        const isFilterActive = isTreeFilterActive();
         const bFilter = document.createElement("button");
         bFilter.type = "button";
-        bFilter.textContent = "Filter";
+        bFilter.textContent = isFilterActive ? "Filter： ON" : "Filter：OFF";
+        bFilter.classList.toggle("active", isFilterActive);
         bFilter.addEventListener("click", (e) => {
           e.stopPropagation();
           openFilterPopup();
