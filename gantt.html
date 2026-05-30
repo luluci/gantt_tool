@@ -1051,6 +1051,10 @@ const csLoaded = () => {
     if (!Array.isArray(d.commonHolidays)) d.commonHolidays = [];
     if (!d.milestones || typeof d.milestones !== "object") d.milestones = {};
     if (!Array.isArray(d.domains)) d.domains = [];
+    if (!d.treeFilter || typeof d.treeFilter !== "object") d.treeFilter = {};
+    if (!d.treeFilter.domains || typeof d.treeFilter.domains !== "object") d.treeFilter.domains = {};
+    if (!d.treeFilter.projects || typeof d.treeFilter.projects !== "object") d.treeFilter.projects = {};
+    if (!d.treeFilter.versions || typeof d.treeFilter.versions !== "object") d.treeFilter.versions = {};
     d.totalPattern = normalizeTotalPattern(d.totalPattern);
     d.topPaneVisible = d.topPaneVisible == null ? true : !!d.topPaneVisible;
     d.inputPaneVisible = d.inputPaneVisible == null ? true : !!d.inputPaneVisible;
@@ -1880,6 +1884,20 @@ const csLoaded = () => {
     state.domainExpanded = state.data.domainExpanded || {};
     state.projectExpanded = state.data.projectExpanded || {};
     state.memberExpanded = state.data.memberExpanded || {};
+    // Initialize tree filter defaults (domains/projects/versions). 未定義項目は true にする
+    if (!state.data.treeFilter || typeof state.data.treeFilter !== "object") state.data.treeFilter = { domains: {}, projects: {}, versions: {} };
+    if (!state.data.treeFilter.domains) state.data.treeFilter.domains = {};
+    if (!state.data.treeFilter.projects) state.data.treeFilter.projects = {};
+    if (!state.data.treeFilter.versions) state.data.treeFilter.versions = {};
+    state.data.domains.forEach((dom) => {
+      if (state.data.treeFilter.domains[dom.id] == null) state.data.treeFilter.domains[dom.id] = true;
+      (dom.projects || []).forEach((pr) => {
+        if (state.data.treeFilter.projects[pr.id] == null) state.data.treeFilter.projects[pr.id] = true;
+        (pr.versions || []).forEach((vr) => {
+          if (state.data.treeFilter.versions[vr.id] == null) state.data.treeFilter.versions[vr.id] = true;
+        });
+      });
+    });
     const viewerMode = window.__GANTT_VIEWER_MODE__ || false;
     if (viewerMode) {
       state.inputPaneVisible = false;
@@ -2120,6 +2138,166 @@ const csLoaded = () => {
     commentPopup.style.display = "block";
     commentPopupText.focus();
     //if (state.commentDisplayMode === "context") renderGantt();
+  }
+
+  // フィルタ用ポップアップとロジック
+  let filterPopup = null;
+  let filterTreeContainer = null;
+  function ensureFilterPopup() {
+    if (filterPopup) return;
+    const pop = document.createElement("div");
+    pop.style.position = "fixed";
+    pop.style.zIndex = "9999";
+    pop.style.right = "8px";
+    pop.style.top = "8px";
+    pop.style.minWidth = "260px";
+    pop.style.maxHeight = "70vh";
+    pop.style.overflow = "auto";
+    pop.style.padding = "8px";
+    pop.style.border = "1px solid #bbb";
+    pop.style.background = "#fff";
+    pop.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+    pop.style.display = "none";
+
+    const title = document.createElement("div");
+    title.style.fontWeight = "600";
+    title.style.marginBottom = "6px";
+    title.textContent = "Filter: domain > project > version";
+    pop.appendChild(title);
+
+    const container = document.createElement("div");
+    filterTreeContainer = container;
+    pop.appendChild(container);
+
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.gap = "6px";
+    row.style.marginTop = "8px";
+    const bClose = document.createElement("button");
+    bClose.type = "button";
+    bClose.textContent = "閉じる";
+    row.appendChild(bClose);
+    pop.appendChild(row);
+    bClose.addEventListener("click", () => { pop.style.display = "none"; });
+
+    window.addEventListener("mousedown", (e) => {
+      if (pop.style.display === "none") return;
+      if (e.target === pop || pop.contains(e.target)) return;
+      pop.style.display = "none";
+    });
+
+    document.body.appendChild(pop);
+    filterPopup = pop;
+  }
+
+  function openFilterPopup() {
+    ensureFilterPopup();
+    renderFilterTree();
+    filterPopup.style.display = filterPopup.style.display === "none" ? "block" : "none";
+  }
+
+  function renderFilterTree() {
+    if (!filterTreeContainer) return;
+    filterTreeContainer.innerHTML = "";
+    const tf = state.data.treeFilter || { domains: {}, projects: {}, versions: {} };
+    state.data.domains.forEach((dom) => {
+      const ddiv = document.createElement("div");
+      ddiv.style.marginBottom = "6px";
+      const dchk = document.createElement("input");
+      dchk.type = "checkbox";
+      dchk.checked = !!tf.domains[dom.id];
+      dchk.addEventListener("change", (e) => { onFilterChange("domain", dom.id, e.target.checked); });
+      const dlabel = document.createElement("label");
+      dlabel.style.fontWeight = "600";
+      dlabel.style.display = "flex";
+      dlabel.style.alignItems = "center";
+      dlabel.style.gap = "6px";
+      dlabel.appendChild(dchk);
+      dlabel.appendChild(document.createTextNode(dom.name || dom.id));
+      ddiv.appendChild(dlabel);
+
+      (dom.projects || []).forEach((pr) => {
+        const pdiv = document.createElement("div");
+        pdiv.style.marginLeft = "14px";
+        const pchk = document.createElement("input");
+        pchk.type = "checkbox";
+        pchk.checked = !!tf.projects[pr.id];
+        pchk.addEventListener("change", (e) => { onFilterChange("project", pr.id, e.target.checked); });
+        const plabel = document.createElement("label");
+        plabel.style.display = "flex";
+        plabel.style.alignItems = "center";
+        plabel.style.gap = "6px";
+        plabel.appendChild(pchk);
+        plabel.appendChild(document.createTextNode(pr.name || pr.id));
+        pdiv.appendChild(plabel);
+
+        (pr.versions || []).forEach((vr) => {
+          const vdiv = document.createElement("div");
+          vdiv.style.marginLeft = "24px";
+          const vchk = document.createElement("input");
+          vchk.type = "checkbox";
+          vchk.checked = !!tf.versions[vr.id];
+          vchk.addEventListener("change", (e) => { onFilterChange("version", vr.id, e.target.checked); });
+          const vlabel = document.createElement("label");
+          vlabel.style.display = "flex";
+          vlabel.style.alignItems = "center";
+          vlabel.style.gap = "6px";
+          vlabel.appendChild(vchk);
+          vlabel.appendChild(document.createTextNode(vr.name || vr.id));
+          vdiv.appendChild(vlabel);
+          pdiv.appendChild(vdiv);
+        });
+
+        ddiv.appendChild(pdiv);
+      });
+
+      filterTreeContainer.appendChild(ddiv);
+    });
+  }
+
+  function onFilterChange(kind, id, checked) {
+    const tf = state.data.treeFilter;
+    if (!tf) return;
+    if (kind === "domain") {
+      tf.domains[id] = checked;
+      // propagate to projects & versions
+      const dom = state.data.domains.find((d) => d.id === id);
+      if (dom) {
+        (dom.projects || []).forEach((pr) => {
+          tf.projects[pr.id] = checked;
+          (pr.versions || []).forEach((vr) => { tf.versions[vr.id] = checked; });
+        });
+      }
+    } else if (kind === "project") {
+      tf.projects[id] = checked;
+      // propagate to versions
+      state.data.domains.forEach((d) => {
+        (d.projects || []).forEach((pr) => {
+          if (pr.id === id) {
+            (pr.versions || []).forEach((vr) => { tf.versions[vr.id] = checked; });
+            // update domain: if any project under domain is ON -> domain ON, else OFF
+            const anyOn = (d.projects || []).some((p) => tf.projects[p.id]);
+            tf.domains[d.id] = !!anyOn;
+          }
+        });
+      });
+    } else if (kind === "version") {
+      tf.versions[id] = checked;
+      // update parent project and domain
+      state.data.domains.forEach((d) => {
+        (d.projects || []).forEach((pr) => {
+          if ((pr.versions || []).some((vr) => vr.id === id)) {
+            const anyVerOn = (pr.versions || []).some((vr) => tf.versions[vr.id]);
+            tf.projects[pr.id] = !!anyVerOn;
+            const anyProjOn = (d.projects || []).some((p) => tf.projects[p.id]);
+            tf.domains[d.id] = !!anyProjOn;
+          }
+        });
+      });
+    }
+    markDirty(state, true);
+    renderFilterTree();
+    renderGantt();
   }
 
   function weekStartDate(ds) {
@@ -4100,12 +4278,22 @@ const csLoaded = () => {
           openManhourSummaryPopup();
         });
 
+        // Filter ボタン
+        const bFilter = document.createElement("button");
+        bFilter.type = "button";
+        bFilter.textContent = "Filter";
+        bFilter.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openFilterPopup();
+        });
+
         toolBox.appendChild(saveBlock);
         toolBox.appendChild(bCommentMode);
         toolBox.appendChild(bLeftPaneToggle);
         toolBox.appendChild(bTopPaneToggle);
         toolBox.appendChild(bJumpToday);
         toolBox.appendChild(bSummary);
+        toolBox.appendChild(bFilter);
         th1.appendChild(toolBox);
 
         tr.appendChild(th1);
@@ -4772,11 +4960,16 @@ const csLoaded = () => {
       });
     }
 
+    // DPV/Task 描画にフィルタを適用する
+    const tf = (state.data && state.data.treeFilter) ? state.data.treeFilter : { domains: {}, projects: {}, versions: {} };
     state.data.domains.forEach((dom) => {
+      if (tf.domains && tf.domains[dom.id] === false) return; // domain が OFF の場合は配下をスキップ
       addDPVRow(dom.name, dom, "domain");
       (dom.projects || []).forEach((pr) => {
+        if (tf.projects && tf.projects[pr.id] === false) return; // project OFF
         addDPVRow(pr.name, pr, "project");
         (pr.versions || []).forEach((vr) => {
+          if (tf.versions && tf.versions[vr.id] === false) return; // version OFF
           addDPVRow(vr.name, vr, "version");
           (vr.tasks || []).forEach((tk) => {
             appendTaskPlanRows(dom, pr, vr, tk);
