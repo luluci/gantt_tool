@@ -2034,6 +2034,13 @@ const csLoaded = () => {
     if (el) el.scrollIntoView({ block: "center" });
   }
 
+  function scrollLeftTaskIntoView(taskId) {
+    if (!taskId) return;
+    const sel = '.inputPaneTask[data-id="' + String(taskId).replace(/"/g, '\\"') + '"]';
+    const el = leftPane.querySelector(sel);
+    if (el) el.scrollIntoView({ block: "center" });
+  }
+
   function scrollGanttPlanIntoView(planId) {
     if (!planId) return;
     const sel = 'tr[data-plan-id="' + String(planId).replace(/"/g, '\\"') + '"]';
@@ -3496,6 +3503,7 @@ const csLoaded = () => {
     const makeTaskNode = (vr, tk) => {
       const te = document.createElement("div");
       te.className = "inputPaneTask";
+      te.dataset.id = tk.id;
       const th = document.createElement("div");
       th.className = "inputPaneHeader inputPaneTaskHeader";
       // title
@@ -4979,6 +4987,9 @@ const csLoaded = () => {
         const t2 = document.createElement("td");
         t2.className = "treeHead nameCell";
         t2.textContent = tk.name;
+        t2.addEventListener("click", () => {
+          scrollLeftTaskIntoView(tk.id);
+        });
         const t3 = document.createElement("td");
         t3.className = "treeHead2 muted";
         t3.textContent = "—";
@@ -5026,6 +5037,9 @@ const csLoaded = () => {
             t2.appendChild(dot);
           }
           
+          t2.addEventListener("click", () => {
+            scrollLeftTaskIntoView(tk.id);
+          });
           t2.addEventListener("contextmenu", (e) => {
             e.preventDefault();
             e.stopPropagation();
