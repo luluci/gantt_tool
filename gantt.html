@@ -1643,7 +1643,7 @@ const csLoaded = () => {
     return totalHours;
   }
 
-  function totalManhoursByPattern(state, dates, ptns) {
+  function totalManhoursByPattern(state, dates, ptns, cellKind = cellKindPlan) {
     const caseFilterCount = state.caseFilter.length;
     // ptnsの階層で人工集計
     let totalHours = {};
@@ -1656,7 +1656,7 @@ const csLoaded = () => {
                 // フィルタケア
                 if (!planMatchesCaseFilter(pl)) return;
                 // 対象日付の稼働ManHourを取得
-                const mh = dayHoursAll(pl, ds);
+                const mh = dayHoursAll(pl, ds, cellKind);
                 // 稼働日でなければスキップ
                 if (mh == 0) return;
 
@@ -1749,14 +1749,37 @@ const csLoaded = () => {
     return totalHours;
   }
 
+  function manhoursDataHasValue(mhData) {
+    const walk = (node) => {
+      if (!node) return false;
+      if (Number(node.total || 0) > 1e-6) return true;
+      if (walk(node.caseFilter)) return true;
+      return Object.keys(node.detail || {}).some((key) => walk(node.detail[key]));
+    };
+    return Object.keys(mhData || {}).some((ds) => walk(mhData[ds]));
+  }
+
   function refreshManhoursRowsDom(dates) {
     // case/domain/member ごとの工数集計行を更新
-    const totalHours = totalManhoursByPattern(state, dates, state.totalPatternList);
+    const renderedDates = (state.lastRenderedDates && state.lastRenderedDates.length) ? state.lastRenderedDates : getDateRange(state);
+    const actualHoursAll = totalManhoursByPattern(state, renderedDates, state.totalPatternList, cellKindActual);
+    const actualShouldRows = manhoursDataHasValue(actualHoursAll);
+    const currentActualRows = !!ganttVScroll.querySelector('tr.manhoursRow[data-mh-cell-kind="actual"]');
+    if (actualShouldRows || currentActualRows) {
+      renderGantt();
+      return;
+    }
+    const totalHoursByKind = {
+      plan: totalManhoursByPattern(state, dates, state.totalPatternList, cellKindPlan),
+      actual: totalManhoursByPattern(state, dates, state.totalPatternList, cellKindActual),
+    };
     const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
     let kindHier = [];
     rows.forEach((row) => {
       // 行情報更新
       const kind = row.dataset.mhKind || "";
+      const mhCellKind = row.dataset.mhCellKind === "actual" ? "actual" : "plan";
+      const totalHours = totalHoursByKind[mhCellKind];
       const caseId = row.dataset.caseId || "";
       const domainId = row.dataset.domainId || "";
       const projectId = row.dataset.projectId || "";
@@ -4496,15 +4519,19 @@ const csLoaded = () => {
     
     thead.appendChild(totalManhoursRow);
 
+    let manhoursRowLabelSuffix = "";
+    let manhoursRowCellKind = "plan";
 
     function createManhoursRowBase(label, depth = 0) {
       const tr = document.createElement("tr");
       tr.className = "treeRow manhoursRow";
+      tr.dataset.mhCellKind = manhoursRowCellKind;
+      tr.dataset.mhTotalHours = "0";
       const labelCell = document.createElement("th");
       labelCell.className = "manhoursHead";
       labelCell.colSpan = 2;
       labelCell.style.paddingLeft = (8 + depth * 10) + "px";
-      labelCell.textContent = label;
+      labelCell.textContent = label + manhoursRowLabelSuffix;
       tr.appendChild(labelCell);
       
       return tr;
@@ -4632,7 +4659,9 @@ const csLoaded = () => {
       const ptns = state.totalPatternList;
 
       // 人工集計データ作成
-      const mhData = totalManhoursByPattern(state, dates, ptns);
+      const mhData = totalManhoursByPattern(state, dates, ptns, cellKindPlan);
+      const mhActualData = totalManhoursByPattern(state, dates, ptns, cellKindActual);
+      const hasActualManhours = manhoursDataHasValue(mhActualData);
 
       // データ内容が空の集計行を一括で作成
       let expandKey = "";
@@ -4788,6 +4817,7 @@ const csLoaded = () => {
             // 当日の総工数を取得
             const mhobj = (key === "caseFilter") ? data?.caseFilter : data?.detail[key];
             const totalHours = (mhobj) ? mhobj.total : 0;
+            tr.dataset.mhTotalHours = String(Number(tr.dataset.mhTotalHours || 0) + totalHours);
             //
             const td = document.createElement("td");
             td.className = "manhourCell";
@@ -4813,11 +4843,23 @@ const csLoaded = () => {
       // header要素まで作成
       const mhRowList = [];
       const mhRowMap = {};
+      manhoursRowLabelSuffix = hasActualManhours ? "(計画)" : "";
+      manhoursRowCellKind = "plan";
       createManhoursRow(mhRowList, mhRowMap, ptns, 0, expandKey, null, null, null, null, null, 0, false);
       // body要素作成
       createManhoursRowBody(mhData, mhRowMap);
-      mhRowList.forEach((tr) => {
+      let actualMhRowList = [];
+      if (hasActualManhours) {
+        const actualMhRowMap = {};
+        manhoursRowLabelSuffix = "(実績)";
+        manhoursRowCellKind = "actual";
+        createManhoursRow(actualMhRowList, actualMhRowMap, ptns, 0, expandKey, null, null, null, null, null, 0, false);
+        createManhoursRowBody(mhActualData, actualMhRowMap);
+      }
+      mhRowList.forEach((tr, idx) => {
         thead.appendChild(tr);
+        const actualTr = actualMhRowList[idx];
+        if (actualTr && Number(actualTr.dataset.mhTotalHours || 0) > 1e-6) thead.appendChild(actualTr);
       });
 
       // state.data.domains.forEach((dom) => {
