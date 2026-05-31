@@ -1643,10 +1643,17 @@ const csLoaded = () => {
     return totalHours;
   }
 
-  function totalManhoursByPattern(state, dates, ptns, cellKind = cellKindPlan) {
+  function totalManhoursByPattern(state, dates, ptns) {
     const caseFilterCount = state.caseFilter.length;
     // ptnsの階層で人工集計
     let totalHours = {};
+    const makeTotal = () => ({ plan: 0, actual: 0 });
+    const makeNode = () => ({ total: makeTotal(), detail: {} });
+    const addHours = (node, planHours, actualHours) => {
+      if (!node.total || typeof node.total !== "object") node.total = makeTotal();
+      node.total.plan += planHours;
+      node.total.actual += actualHours;
+    };
     (dates || []).forEach((ds) => {
       state.data.domains.forEach((dom) => {
         (dom.projects || []).forEach((pr) => {
@@ -1656,12 +1663,13 @@ const csLoaded = () => {
                 // フィルタケア
                 if (!planMatchesCaseFilter(pl)) return;
                 // 対象日付の稼働ManHourを取得
-                const mh = dayHoursAll(pl, ds, cellKind);
+                const mhPlan = dayHoursAll(pl, ds, cellKindPlan);
+                const mhActual = dayHoursAll(pl, ds, cellKindActual);
                 // 稼働日でなければスキップ
-                if (mh == 0) return;
+                if (mhPlan == 0 && mhActual == 0) return;
 
                 // ルート要素作成
-                if (!totalHours[ds]) totalHours[ds] = { total: 0, detail: {} };
+                if (!totalHours[ds]) totalHours[ds] = makeNode();
                 const dateNode = totalHours[ds];
 
                 // パターンに従い階層化して集計
@@ -1671,72 +1679,72 @@ const csLoaded = () => {
                   switch (kind) {
                     case TOTAL_KIND_CASE:
                       // caseチェック
-                      if (!tgtNode.detail[pl.caseId]) tgtNode.detail[pl.caseId] = { total: 0, detail: {} };
+                      if (!tgtNode.detail[pl.caseId]) tgtNode.detail[pl.caseId] = makeNode();
                       // フィルタcase集計
                       if (caseFilterCount >= 2) {
-                        if (!tgtNode.caseFilter) tgtNode.caseFilter = { total: 0, detail: {} };
+                        if (!tgtNode.caseFilter) tgtNode.caseFilter = makeNode();
                         filterNode = tgtNode.caseFilter;
-                        filterNode.total += mh;
+                        addHours(filterNode, mhPlan, mhActual);
                       }
                       // case集計
                       tgtNode = tgtNode.detail[pl.caseId];
-                      tgtNode.total += mh;
+                      addHours(tgtNode, mhPlan, mhActual);
                       break;
 
                     case TOTAL_KIND_DOMAIN:
                       // チェック
-                      if (!tgtNode.detail[dom.id]) tgtNode.detail[dom.id] = { total: 0, detail: {} };
+                      if (!tgtNode.detail[dom.id]) tgtNode.detail[dom.id] = makeNode();
                       // フィルタdomain集計
                       if (!!filterNode) {
-                        if (!filterNode.detail[dom.id]) filterNode.detail[dom.id] = { total: 0, detail: {} };
+                        if (!filterNode.detail[dom.id]) filterNode.detail[dom.id] = makeNode();
                         filterNode = filterNode.detail[dom.id];
-                        filterNode.total += mh;
+                        addHours(filterNode, mhPlan, mhActual);
                       }
                       // domain集計
                       tgtNode = tgtNode.detail[dom.id];
-                      tgtNode.total += mh;
+                      addHours(tgtNode, mhPlan, mhActual);
                       break;
 
                     case TOTAL_KIND_PROJECT:
                       // チェック
-                      if (!tgtNode.detail[pr.id]) tgtNode.detail[pr.id] = { total: 0, detail: {} };
+                      if (!tgtNode.detail[pr.id]) tgtNode.detail[pr.id] = makeNode();
                       // フィルタproject集計
                       if (!!filterNode) {
-                        if (!filterNode.detail[pr.id]) filterNode.detail[pr.id] = { total: 0, detail: {} };
+                        if (!filterNode.detail[pr.id]) filterNode.detail[pr.id] = makeNode();
                         filterNode = filterNode.detail[pr.id];
-                        filterNode.total += mh;
+                        addHours(filterNode, mhPlan, mhActual);
                       }
                       // project集計
                       tgtNode = tgtNode.detail[pr.id];
-                      tgtNode.total += mh;
+                      addHours(tgtNode, mhPlan, mhActual);
                       break;
 
                     case TOTAL_KIND_VERSION:
                       // チェック
-                      if (!tgtNode.detail[vr.id]) tgtNode.detail[vr.id] = { total: 0, detail: {} };
+                      if (!tgtNode.detail[vr.id]) tgtNode.detail[vr.id] = makeNode();
                       // フィルタversion集計
                       if (!!filterNode) {
-                        if (!filterNode.detail[vr.id]) filterNode.detail[vr.id] = { total: 0, detail: {} };
+                        if (!filterNode.detail[vr.id]) filterNode.detail[vr.id] = makeNode();
                         filterNode = filterNode.detail[vr.id];
-                        filterNode.total += mh;
+                        addHours(filterNode, mhPlan, mhActual);
                       }
                       // version集計
                       tgtNode = tgtNode.detail[vr.id];
-                      tgtNode.total += mh;
+                      addHours(tgtNode, mhPlan, mhActual);
                       break;
 
                     case TOTAL_KIND_MEMBER:
                       // チェック
-                      if (!tgtNode.detail[pl.ownerId]) tgtNode.detail[pl.ownerId] = { total: 0, detail: {} };
+                      if (!tgtNode.detail[pl.ownerId]) tgtNode.detail[pl.ownerId] = makeNode();
                       // フィルタmember集計
                       if (!!filterNode) {
-                        if (!filterNode.detail[pl.ownerId]) filterNode.detail[pl.ownerId] = { total: 0, detail: {} };
+                        if (!filterNode.detail[pl.ownerId]) filterNode.detail[pl.ownerId] = makeNode();
                         filterNode = filterNode.detail[pl.ownerId];
-                        filterNode.total += mh;
+                        addHours(filterNode, mhPlan, mhActual);
                       }
                       // member集計
                       tgtNode = tgtNode.detail[pl.ownerId];
-                      tgtNode.total += mh;
+                      addHours(tgtNode, mhPlan, mhActual);
                       break;
                   }
                 });
@@ -1749,10 +1757,10 @@ const csLoaded = () => {
     return totalHours;
   }
 
-  function manhoursDataHasValue(mhData) {
+  function manhoursDataHasActual(mhData) {
     const walk = (node) => {
       if (!node) return false;
-      if (Number(node.total || 0) > 1e-6) return true;
+      if (Number((node.total && node.total.actual) || 0) > 1e-6) return true;
       if (walk(node.caseFilter)) return true;
       return Object.keys(node.detail || {}).some((key) => walk(node.detail[key]));
     };
@@ -1762,24 +1770,20 @@ const csLoaded = () => {
   function refreshManhoursRowsDom(dates) {
     // case/domain/member ごとの工数集計行を更新
     const renderedDates = (state.lastRenderedDates && state.lastRenderedDates.length) ? state.lastRenderedDates : getDateRange(state);
-    const actualHoursAll = totalManhoursByPattern(state, renderedDates, state.totalPatternList, cellKindActual);
-    const actualShouldRows = manhoursDataHasValue(actualHoursAll);
+    const actualHoursAll = totalManhoursByPattern(state, renderedDates, state.totalPatternList);
+    const actualShouldRows = manhoursDataHasActual(actualHoursAll);
     const currentActualRows = !!ganttVScroll.querySelector('tr.manhoursRow[data-mh-cell-kind="actual"]');
-    if (actualShouldRows || currentActualRows) {
+    if (actualShouldRows !== currentActualRows) {
       renderGantt();
       return;
     }
-    const totalHoursByKind = {
-      plan: totalManhoursByPattern(state, dates, state.totalPatternList, cellKindPlan),
-      actual: totalManhoursByPattern(state, dates, state.totalPatternList, cellKindActual),
-    };
+    const totalHours = totalManhoursByPattern(state, dates, state.totalPatternList);
     const rows = ganttVScroll.querySelectorAll("tr.manhoursRow[data-mh-kind]");
     let kindHier = [];
     rows.forEach((row) => {
       // 行情報更新
       const kind = row.dataset.mhKind || "";
       const mhCellKind = row.dataset.mhCellKind === "actual" ? "actual" : "plan";
-      const totalHours = totalHoursByKind[mhCellKind];
       const caseId = row.dataset.caseId || "";
       const domainId = row.dataset.domainId || "";
       const projectId = row.dataset.projectId || "";
@@ -1831,7 +1835,7 @@ const csLoaded = () => {
         const dateNode = getDateNode(ds);
         let mh = 0;
         if (dateNode) {
-          mh = dateNode.total;
+          mh = (dateNode.total && dateNode.total[mhCellKind]) || 0;
         }
         td.textContent = (mh / 8).toFixed(1);
         td.title = mh + "hr";
@@ -4544,7 +4548,7 @@ const csLoaded = () => {
         td.dataset.date = ds;
         
         // 当日の総工数を計算
-        const totalHours = (mhData[ds] && mhData[ds].total) ? mhData[ds].total : 0;
+        const totalHours = (mhData[ds] && mhData[ds].total && mhData[ds].total[manhoursRowCellKind]) ? mhData[ds].total[manhoursRowCellKind] : 0;
         
         // 人工 = 工数 / 8hr
         const manHours = (totalHours / 8).toFixed(1);
@@ -4659,9 +4663,8 @@ const csLoaded = () => {
       const ptns = state.totalPatternList;
 
       // 人工集計データ作成
-      const mhData = totalManhoursByPattern(state, dates, ptns, cellKindPlan);
-      const mhActualData = totalManhoursByPattern(state, dates, ptns, cellKindActual);
-      const hasActualManhours = manhoursDataHasValue(mhActualData);
+      const mhData = totalManhoursByPattern(state, dates, ptns);
+      const hasActualManhours = manhoursDataHasActual(mhData);
 
       // データ内容が空の集計行を一括で作成
       let expandKey = "";
@@ -4816,7 +4819,8 @@ const csLoaded = () => {
             const tr = obj[0];
             // 当日の総工数を取得
             const mhobj = (key === "caseFilter") ? data?.caseFilter : data?.detail[key];
-            const totalHours = (mhobj) ? mhobj.total : 0;
+            const totalKind = tr.dataset.mhCellKind === "actual" ? "actual" : "plan";
+            const totalHours = (mhobj && mhobj.total) ? (mhobj.total[totalKind] || 0) : 0;
             tr.dataset.mhTotalHours = String(Number(tr.dataset.mhTotalHours || 0) + totalHours);
             //
             const td = document.createElement("td");
@@ -4854,7 +4858,7 @@ const csLoaded = () => {
         manhoursRowLabelSuffix = "(実績)";
         manhoursRowCellKind = "actual";
         createManhoursRow(actualMhRowList, actualMhRowMap, ptns, 0, expandKey, null, null, null, null, null, 0, false);
-        createManhoursRowBody(mhActualData, actualMhRowMap);
+        createManhoursRowBody(mhData, actualMhRowMap);
       }
       mhRowList.forEach((tr, idx) => {
         thead.appendChild(tr);
