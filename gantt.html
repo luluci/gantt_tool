@@ -1767,13 +1767,17 @@ const csLoaded = () => {
     return Object.keys(mhData || {}).some((ds) => walk(mhData[ds]));
   }
 
-  function refreshManhoursRowsDom(dates) {
-    // case/domain/member ごとの工数集計行を更新
+  function shouldRenderGanttForManhoursActualRows() {
     const renderedDates = (state.lastRenderedDates && state.lastRenderedDates.length) ? state.lastRenderedDates : getDateRange(state);
-    const actualHoursAll = totalManhoursByPattern(state, renderedDates, state.totalPatternList);
-    const actualShouldRows = manhoursDataHasActual(actualHoursAll);
-    const currentActualRows = !!ganttVScroll.querySelector('tr.manhoursRow[data-mh-cell-kind="actual"]');
-    if (actualShouldRows !== currentActualRows) {
+    const mhData = totalManhoursByPattern(state, renderedDates, state.totalPatternList);
+    const hasActualData = manhoursDataHasActual(mhData);
+    const hasActualRows = !!ganttVScroll.querySelector('tr.manhoursRow[data-mh-cell-kind="actual"]');
+    return hasActualData !== hasActualRows;
+  }
+
+  function refreshManhoursRowsDom(dates, forceActualRowsRefresh = false) {
+    // case/domain/member ごとの工数集計行を更新
+    if (forceActualRowsRefresh || shouldRenderGanttForManhoursActualRows()) {
       renderGantt();
       return;
     }
@@ -3874,7 +3878,7 @@ const csLoaded = () => {
         pl.plannedEnd = computePlannedEnd(pl, state);
         syncLeftPanePlanSummaryDom(pl.id, cellKindPlan);
         syncLeftPanePlanSummaryDom(pl.id, cellKindActual);
-        refreshManhoursRowsDom(targetDates);
+        refreshManhoursRowsDom(targetDates, true);
         markDirty(state, true);
       });
       addLabeled(rowSelect, "稼働率", inpUtil);
@@ -5385,7 +5389,7 @@ const csLoaded = () => {
       plan.plannedEnd = computePlannedEnd(plan, state);
       markDirty(state, true);
       syncLeftPanePlanSummaryDom(plan.id, plan.isPlanOrActual);
-      refreshManhoursRowsDom([ds]);
+      refreshManhoursRowsDom([ds], cellKind === cellKindActual);
     };
     spn.addEventListener("blur", onChange);
     // Enterキーで確定、Escキーでキャンセル
@@ -5487,7 +5491,7 @@ const csLoaded = () => {
             pln.plannedEnd = computePlannedEnd(pln, state);
             markDirty(state, true);
             syncLeftPanePlanSummaryDom(pln.id, pln.isPlanOrActual);
-            refreshManhoursRowsDom([ds]);
+            refreshManhoursRowsDom([ds], dg.cellKind === cellKindActual);
             if (dg.cellKind === cellKindPlan && shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
           }
         } else if (dg.mode === MOUSE_EV_MODE_MOVE && !dg.dragMoved && cellIsOn(pln, ds, dg.cellKind)) {
@@ -5513,7 +5517,7 @@ const csLoaded = () => {
           pln.plannedEnd = computePlannedEnd(pln, state);
           markDirty(state, true);
           syncLeftPanePlanSummaryDom(pln.id, pln.isPlanOrActual);
-          refreshManhoursRowsDom(changedDates);
+          refreshManhoursRowsDom(changedDates, dg.cellKind === cellKindActual);
           if (dg.cellKind === cellKindPlan && shouldRefreshGanttNearRangeEdge(pln, dg.frozenDates || dates || [], pln.cells)) renderGantt();
         }
       }
