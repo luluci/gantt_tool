@@ -5164,12 +5164,8 @@ const csLoaded = () => {
         if (tf.projects && tf.projects[pr.id] === false) return; // project OFF
         addDPVRow(pr.name, pr, "project");
         (pr.versions || []).forEach((vr) => {
-          // filterDisplayLevel が "version" でない場合、version 行をスキップし、配下のタスクを直接表示
-          const showVersionRow = (displayLevel === "version");
-          if (showVersionRow) {
-            if (tf.versions && tf.versions[vr.id] === false) return; // version OFF かつ表示対象
-            addDPVRow(vr.name, vr, "version");
-          }
+          if (displayLevel === "version" && tf.versions && tf.versions[vr.id] === false) return; // version OFF かつ表示対象
+          addDPVRow(vr.name, vr, "version");
           (vr.tasks || []).forEach((tk) => {
             appendTaskPlanRows(dom, pr, vr, tk);
           });
