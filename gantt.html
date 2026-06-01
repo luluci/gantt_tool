@@ -2291,22 +2291,30 @@ const csLoaded = () => {
     row.className = "filter-button-row";
     const bClear = document.createElement("button");
     bClear.type = "button";
-    bClear.textContent = "フィルタ解除";
+    bClear.textContent = "全てチェック";
     row.appendChild(bClear);
+    const bUncheckAll = document.createElement("button");
+    bUncheckAll.type = "button";
+    bUncheckAll.textContent = "チェッククリア";
+    row.appendChild(bUncheckAll);
     const bClose = document.createElement("button");
     bClose.type = "button";
     bClose.textContent = "閉じる";
     row.appendChild(bClose);
     pop.appendChild(row);
 
-    bClear.addEventListener("click", () => {
+    const setAllTreeFilterChecked = (checked) => {
       const tf = state.data && state.data.treeFilter ? state.data.treeFilter : { domains: {}, projects: {}, versions: {} };
-      Object.keys(tf.domains).forEach((key) => { tf.domains[key] = true; });
-      Object.keys(tf.projects).forEach((key) => { tf.projects[key] = true; });
-      Object.keys(tf.versions).forEach((key) => { tf.versions[key] = true; });
+      Object.keys(tf.domains).forEach((key) => { tf.domains[key] = checked; });
+      Object.keys(tf.projects).forEach((key) => { tf.projects[key] = checked; });
+      Object.keys(tf.versions).forEach((key) => { tf.versions[key] = checked; });
+      markDirty(state, true);
       renderFilterTree();
       renderGantt();
-    });
+    };
+
+    bClear.addEventListener("click", () => { setAllTreeFilterChecked(true); });
+    bUncheckAll.addEventListener("click", () => { setAllTreeFilterChecked(false); });
 
     bClose.addEventListener("click", () => { pop.style.display = "none"; });
 
