@@ -2029,16 +2029,7 @@ const csLoaded = () => {
     // markDirty(state, false);
     state.dirty = false;
 
-    ganttVScroll.addEventListener("scrollend", () => {
-      if (milestoneLayer != null && milestoneLineLayer != null && state.commentDisplayMode === "always") {
-        const scrollTop = ganttVScroll.scrollTop + "px";
-        const commentHeight = (commentLayer.offsetHeight - parseFloat(scrollTop)) + "px";
-        milestoneLayer.style.top = scrollTop;
-        milestoneLayer.style.height = commentHeight;
-        milestoneLineLayer.style.top = scrollTop;
-        milestoneLineLayer.style.height = commentHeight;
-      }
-    });
+    ganttVScroll.addEventListener("scrollend", syncMilestoneLayerToScroll);
   }
 
   const topPane = document.getElementById("topPane");
@@ -2061,6 +2052,17 @@ const csLoaded = () => {
   let commentLayer = null;
   let milestoneLayer = null;
   let milestoneLineLayer = null;
+
+  function syncMilestoneLayerToScroll() {
+    if (!commentLayer || !milestoneLayer || !milestoneLineLayer || state.commentDisplayMode !== "always") return;
+    const scrollTopNum = ganttVScroll.scrollTop || 0;
+    const scrollTop = scrollTopNum + "px";
+    const commentHeight = Math.max(0, commentLayer.offsetHeight - scrollTopNum) + "px";
+    milestoneLayer.style.top = scrollTop;
+    milestoneLayer.style.height = commentHeight;
+    milestoneLineLayer.style.top = scrollTop;
+    milestoneLineLayer.style.height = commentHeight;
+  }
 
   function scrollLeftPlanIntoView(planId) {
     if (!planId) return;
@@ -5274,8 +5276,9 @@ const csLoaded = () => {
         const cw = card.offsetWidth;
         const ch = card.offsetHeight;
         // 相対座標を絶対座標に変換
-        const baseX = saved ? dotX + saved.x : dotX + 12;
-        const baseY = saved ? dotY + saved.y : dotY - 38;
+        const absDotY = dotY - ganttVScroll.scrollTop;
+        const baseX = (saved ? dotX + saved.x : dotX + 12);
+        const baseY = (saved ? absDotY + saved.y : absDotY - 38);
         const pos = clampCommentPos(baseX, baseY, cw, ch);
         card.style.left = pos.x + "px";
         card.style.top = pos.y + "px";
@@ -5294,7 +5297,7 @@ const csLoaded = () => {
           const cx = parseFloat(card.style.left) || 0;
           const cy = parseFloat(card.style.top) || 0;
           line.setAttribute("x1", String(dotX));
-          line.setAttribute("y1", String(dotY));
+          line.setAttribute("y1", String(absDotY));
           line.setAttribute("x2", String(cx));
           line.setAttribute("y2", String(cy + 10));
         };
@@ -5325,7 +5328,7 @@ const csLoaded = () => {
             const py = parseFloat(card.style.top) || 0;
             // 絶対座標を相対座標に変換して保存
             const relX = px - dotX;
-            const relY = py - dotY;
+            const relY = py - absDotY;
             if (ref.kind === "milestone") {
               setMilestoneCommentPos(ref.target, { x: relX, y: relY });
             } else if (ref.date) {
@@ -5334,7 +5337,7 @@ const csLoaded = () => {
               setNodeCommentPos(ref.target, { x: relX, y: relY });
             }
             markDirty(state, true);
-            renderGantt(dates);
+            //renderGantt(dates);
           };
           card.addEventListener("pointermove", onMv);
           card.addEventListener("pointerup", onUp);
@@ -5345,6 +5348,7 @@ const csLoaded = () => {
     ganttVScroll.innerHTML = "";
     ganttVScroll.appendChild(stage);
     drawCommentOverlay();
+    syncMilestoneLayerToScroll();
     if (manhourSummaryPopup && manhourSummaryPopup.style.display !== "none") {
       renderManhourSummaryPopup();
     }
