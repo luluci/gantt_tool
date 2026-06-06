@@ -255,6 +255,10 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+
+        & .editLabelInput {
+          width: 100%;
+        }
       }
       & .inputPaneHeaderTool {
         grid-column: 2;
@@ -3279,9 +3283,9 @@ const csLoaded = () => {
 
   function startEditLabel(span, onCommit) {
     const t = span.textContent;
-    const inp = document.createElement("textarea");
+    const inp = document.createElement("input");
     inp.className = "editLabelInput";
-    //inp.type = "text";
+    inp.type = "text";
     inp.value = t;
     span.replaceWith(inp);
     inp.focus();
@@ -3297,7 +3301,6 @@ const csLoaded = () => {
       }
       inp.replaceWith(span);
       onCommit(inp.value, cancel);
-      // renderAll();
     }
     inp.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === "Escape") {
@@ -3307,6 +3310,35 @@ const csLoaded = () => {
       }
     });
     inp.addEventListener("blur", done);
+  }
+  function addTextareaEditEvent(elem, onCommit) {
+    // <textarea>の操作イベントを登録する
+    let cancel = false;
+    let org = elem.value;
+    elem.addEventListener("blur", () => {
+      if (!cancel) {
+        if (elem.value === org) {
+          cancel = true;
+        } else {
+          // 変更あり
+        }
+      }
+      let result = cancel;
+      org = elem.value;
+      cancel = false;
+      onCommit(result);
+    });
+    elem.addEventListener("keydown", (e) => {
+      // 改行可能にする
+      // if (e.key === "Enter") {
+      //   elem.blur();
+      // }
+      if (e.key === "Escape") {
+        cancel = true;
+        elem.value = org;
+        elem.blur();
+      }
+    });
   }
 
   function renderInputPane() {
@@ -3447,9 +3479,9 @@ const csLoaded = () => {
       ps.addEventListener("click", () => startEditLabel(ps, (v, cancel) => {
         if (!cancel && v) {
           pr.name = v;
+          markDirty(state, true);
+          renderGantt();
         }
-        markDirty(state, true);
-        renderGantt();
       }));
       title.appendChild(ps);
       // tool
@@ -3499,9 +3531,9 @@ const csLoaded = () => {
       vs.addEventListener("click", () => startEditLabel(vs, (v, cancel) => {
         if (!cancel && v) {
           vr.name = v;
+          markDirty(state, true);
+          renderGantt();
         }
-        markDirty(state, true);
-        renderGantt();
       }));
       title.appendChild(vs);
       // tool
@@ -3554,9 +3586,9 @@ const csLoaded = () => {
       ts.addEventListener("click", () => startEditLabel(ts, (v, cancel) => {
         if (!cancel && v) {
           tk.name = v;
+          markDirty(state, true);
+          renderGantt();
         }
-        markDirty(state, true);
-        renderGantt();
       }));
       title.appendChild(ts);
       // tool
@@ -3603,9 +3635,9 @@ const csLoaded = () => {
       ns.addEventListener("click", () => startEditLabel(ns, (v, cancel) => {
         if (!cancel && v) {
           pl.name = v;
+          markDirty(state, true);
+          renderGantt();
         }
-        markDirty(state, true);
-        renderGantt();
       }));
       title.appendChild(ns);
       // tool
@@ -3969,17 +4001,11 @@ const csLoaded = () => {
       commentTextarea.rows = 3;
       commentTextarea.className = "commentTextarea";
       commentTextarea.value = pl.comment.text || "";
-      commentTextarea.addEventListener("blur", () => {
+      addTextareaEditEvent(commentTextarea, (cancel) => {
+        if (cancel) return;
         pl.comment.text = commentTextarea.value;
         markDirty(state, true);
         renderGantt();
-      });
-      commentTextarea.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          commentTextarea.blur();
-        } else if (e.key === "Escape") {
-          commentTextarea.value = pl.comment.text || "";
-        }
       });
       addLabeled(rowComment, "コメント", commentTextarea);
 
