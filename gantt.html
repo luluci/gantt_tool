@@ -1087,6 +1087,7 @@ const csLoaded = () => {
       milestones: {},
       domains: [],
       totalPattern: TOTAL_PATTERN_CDM,
+      summaryMode: "both",
     };
   }
 
@@ -1958,6 +1959,7 @@ const csLoaded = () => {
     caseFilter: [],
     totalPattern: TOTAL_PATTERN_CDM,
     totalPatternList: TOTAL_PATTERN_LIST_CDM,
+    summaryMode: "both",
     manhourSummaryUnit: "week",
     lastRenderedDates: [],
     selectedPlanId: null,
@@ -1994,6 +1996,7 @@ const csLoaded = () => {
     state.totalPattern = normalizeTotalPattern(state.data.totalPattern);
     state.totalPatternList = getTotalPatternList(state.totalPattern);
     state.data.totalPattern = state.totalPattern;
+    state.summaryMode = (state.data.summaryMode && ["both", "plan", "actual"].includes(state.data.summaryMode)) ? state.data.summaryMode : "both";
     state.topPaneVisible = !!state.data.topPaneVisible;
     state.inputPaneVisible = !!state.data.inputPaneVisible;
     state.manhoursExpanded = !!state.data.manhoursExpanded;
@@ -3051,6 +3054,39 @@ const csLoaded = () => {
     aggBlock.appendChild(aggLabel);
     aggBlock.appendChild(aggSel);
     topPane.appendChild(aggBlock);
+
+    // 集計行表示設定
+    const summaryBlock = document.createElement("div");
+    summaryBlock.className = "topBlock totalMode";
+    const summaryLabel = document.createElement("label");
+    summaryLabel.textContent = "集計行表示";
+    const summarySel = document.createElement("select");
+    summarySel.className = "listbox";
+    summarySel.multiple = false;
+    summarySel.size = 3;
+    const summaryOptions = [
+      { value: "both", label: "両方" },
+      { value: "plan", label: "計画のみ" },
+      { value: "actual", label: "実績のみ" }
+    ];
+    summaryOptions.forEach((opt) => {
+      const o = document.createElement("option");
+      o.value = opt.value;
+      o.textContent = opt.label;
+      summarySel.appendChild(o);
+    });
+    summarySel.value = state.summaryMode || "both";
+    summarySel.addEventListener("change", () => {
+      const next = summarySel.value;
+      if (state.summaryMode === next) return;
+      state.summaryMode = next;
+      state.data.summaryMode = next;
+      markDirty(state, true);
+      renderGantt();
+    });
+    summaryBlock.appendChild(summaryLabel);
+    summaryBlock.appendChild(summarySel);
+    topPane.appendChild(summaryBlock);
 
     // member設定
     const mem = document.createElement("div");
@@ -4887,24 +4923,47 @@ const csLoaded = () => {
       // header要素まで作成
       const mhRowList = [];
       const mhRowMap = {};
-      manhoursRowLabelSuffix = hasActualManhours ? "(計画)" : "";
-      manhoursRowCellKind = "plan";
-      createManhoursRow(mhRowList, mhRowMap, ptns, 0, expandKey, null, null, null, null, null, 0, false);
-      // body要素作成
-      createManhoursRowBody(mhData, mhRowMap);
       let actualMhRowList = [];
-      if (hasActualManhours) {
+      const showPlanRow = state.summaryMode !== "actual";
+      const showActualRow = hasActualManhours && state.summaryMode !== "plan";
+      
+      // ラベルサフィックス設定
+      if (state.summaryMode === "both" && hasActualManhours) {
+        manhoursRowLabelSuffix = "(計画)";
+      } else {
+        manhoursRowLabelSuffix = "";
+      }
+      
+      // 計画行作成
+      if (showPlanRow) {
+        manhoursRowCellKind = "plan";
+        createManhoursRow(mhRowList, mhRowMap, ptns, 0, expandKey, null, null, null, null, null, 0, false);
+        createManhoursRowBody(mhData, mhRowMap);
+      }
+      
+      // 実績行作成
+      if (showActualRow) {
         const actualMhRowMap = {};
         manhoursRowLabelSuffix = "(実績)";
         manhoursRowCellKind = "actual";
         createManhoursRow(actualMhRowList, actualMhRowMap, ptns, 0, expandKey, null, null, null, null, null, 0, false);
         createManhoursRowBody(mhData, actualMhRowMap);
       }
+      
+      // thead への行追加
       mhRowList.forEach((tr, idx) => {
         thead.appendChild(tr);
-        const actualTr = actualMhRowList[idx];
-        if (actualTr && Number(actualTr.dataset.mhTotalHours || 0) > 1e-6) thead.appendChild(actualTr);
+        if (showActualRow) {
+          const actualTr = actualMhRowList[idx];
+          if (actualTr && Number(actualTr.dataset.mhTotalHours || 0) > 1e-6) thead.appendChild(actualTr);
+        }
       });
+      if (mhRowList.length === 0 && showActualRow) {
+        // 計画行がない場合、実績行だけ追加
+        actualMhRowList.forEach((tr) => {
+          if (Number(tr.dataset.mhTotalHours || 0) > 1e-6) thead.appendChild(tr);
+        });
+      }
 
       // state.data.domains.forEach((dom) => {
       //   (dom.projects || []).forEach((pr) => {
