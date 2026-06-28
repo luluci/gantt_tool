@@ -88,6 +88,15 @@
     .topBlock.totalMode select {
       width: auto;
     }
+    .topMemoTextarea {
+      width: 220px;
+      height: 180px;
+      min-width: 220px;
+      border: 1px solid var(--border);
+      padding: 4px 6px;
+      font: inherit;
+      background: #fff;
+    }
     .topBlock .listHeader {
       display: flex;
       gap: 4px;
@@ -1088,6 +1097,7 @@ const csLoaded = () => {
       domains: [],
       totalPattern: TOTAL_PATTERN_CDM,
       summaryMode: "both",
+      memo: "",
     };
   }
 
@@ -1136,6 +1146,7 @@ const csLoaded = () => {
     if (!Array.isArray(d.commonHolidays)) d.commonHolidays = [];
     if (!d.milestones || typeof d.milestones !== "object") d.milestones = {};
     if (!Array.isArray(d.domains)) d.domains = [];
+    d.memo = typeof d.memo === "string" ? d.memo : "";
     if (!d.treeFilter || typeof d.treeFilter !== "object") d.treeFilter = {};
     if (!d.treeFilter.domains || typeof d.treeFilter.domains !== "object") d.treeFilter.domains = {};
     if (!d.treeFilter.projects || typeof d.treeFilter.projects !== "object") d.treeFilter.projects = {};
@@ -2915,6 +2926,23 @@ const csLoaded = () => {
   function renderTop() {
     const d = state.data;
     topPane.innerHTML = "";
+
+    const memoBlock = document.createElement("div");
+    memoBlock.className = "topBlock topMemoBlock";
+    const memoLabel = document.createElement("label");
+    memoLabel.textContent = "メモ";
+    const memoTextarea = document.createElement("textarea");
+    memoTextarea.className = "topMemoTextarea";
+    memoTextarea.value = d.memo || "";
+    memoTextarea.addEventListener("input", () => {
+      const next = memoTextarea.value;
+      if (d.memo === next) return;
+      d.memo = next;
+      markDirty(state, true);
+    });
+    memoBlock.appendChild(memoLabel);
+    memoBlock.appendChild(memoTextarea);
+    topPane.appendChild(memoBlock);
 
     function mkListbox(id, items, opts) {
       const wrap = document.createElement("div");
